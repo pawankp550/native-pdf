@@ -212,10 +212,10 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
                     {darkMode ? <Sun size={15} /> : <Moon size={15} />}
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleSaveTemplate} title="Save template as JSON">
-                    <Download size={13} className="mr-1" /> Save
+                    <Download size={13} className="mr-1" /> Save Template
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => loadRef.current?.click()} title="Load template from JSON">
-                    <Upload size={13} className="mr-1" /> Load
+                    <Upload size={13} className="mr-1" /> Load Template
                 </Button>
                 <input ref={loadRef} type="file" accept=".json" className="hidden" onChange={handleLoadTemplate} />
                 <Button size="sm" onClick={handleExportPdf} disabled={exporting} title="Export as PDF">
