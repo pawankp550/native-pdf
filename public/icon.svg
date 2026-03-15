@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Oval ring wrapping around the document (light blue base), tilted -->
+  <ellipse cx="32" cy="32" rx="20" ry="27" fill="none" stroke="#dbeafe" stroke-width="2.5"
+    transform="rotate(20 32 32)"/>
+
+  <!-- Blue arc segment (~25% of oval perimeter), same tilt, offset to upper-right -->
+  <ellipse cx="32" cy="32" rx="20" ry="27" fill="none" stroke="#3b82f6" stroke-width="2.5"
+    stroke-linecap="round" stroke-dasharray="37 111" stroke-dashoffset="0"
+    transform="rotate(20 32 32)"/>
+
+  <!-- Document page -->
+  <rect x="20" y="16" width="24" height="32" rx="3" fill="#f0f6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+
+  <!-- Folded corner (top-right) -->
+  <path d="M36 16 L44 24 L36 24 Z" fill="#dbeafe"/>
+  <line x1="36" y1="16" x2="44" y2="24" stroke="#93c5fd" stroke-width="1.2"/>
+
+  <!-- Text lines -->
+  <rect x="23" y="28" width="10" height="2" rx="1" fill="#93c5fd"/>
+  <rect x="23" y="33" width="16" height="2" rx="1" fill="#93c5fd"/>
+  <rect x="23" y="38" width="8"  height="2" rx="1" fill="#93c5fd"/>
+  <rect x="23" y="43" width="13" height="2" rx="1" fill="#93c5fd"/>
+</svg>

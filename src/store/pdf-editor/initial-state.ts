@@ -4,25 +4,26 @@ import type { PdfEditorState } from './types/state';
 const firstPageId = nanoid();
 
 export const initialState: PdfEditorState = {
-    pages: [
-        {
-            id: firstPageId,
-            name: 'Page 1',
-            width: 794,
-            height: 1123,
-            order: 0,
-            backgroundColor: '#ffffff',
-        },
-    ],
-    currentPageId: firstPageId,
-    elements: {},
-    selectedElementIds: [],
-    zoom: 1,
-    templateName: 'Untitled Template',
-    isDirty: false,
-    showGrid: false,
-    history: {
-        past: [],
-        future: [],
+  basePdf: null,
+  pages: [
+    {
+      id: firstPageId,
+      name: 'Page 1',
+      width: 794,
+      height: 1123,
+      order: 0,
+      backgroundColor: '#ffffff',
     },
+  ],
+  currentPageId: firstPageId,
+  elements: {},
+  selectedElementIds: [],
+  zoom: 1,
+  templateName: 'Untitled Template',
+  isDirty: false,
+  showGrid: false,
+  history: {
+    past: [],
+    future: [],
+  },
 };

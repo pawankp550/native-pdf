@@ -1,9 +1,10 @@
 import { StandardFonts } from 'pdf-lib';
+import type { FontFamily } from '@/constants/fonts';
 
 export function getFontName(
-  fontFamily: 'Helvetica' | 'Times' | 'Courier',
+  fontFamily: FontFamily,
   fontWeight: 'normal' | 'bold',
-  fontStyle: 'normal' | 'italic'
+  fontStyle: 'normal' | 'italic',
 ): (typeof StandardFonts)[keyof typeof StandardFonts] {
   if (fontFamily === 'Helvetica') {
     if (fontWeight === 'bold' && fontStyle === 'italic') return StandardFonts.HelveticaBoldOblique;

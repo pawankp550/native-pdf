@@ -13,34 +13,35 @@ export const selectIsDirty = (state: RootState) => state.pdfEditor.isDirty;
 export const selectShowGrid = (state: RootState) => state.pdfEditor.showGrid;
 export const selectCanUndo = (state: RootState) => state.pdfEditor.history.past.length > 0;
 export const selectCanRedo = (state: RootState) => state.pdfEditor.history.future.length > 0;
+export const selectBasePdf = (state: RootState) => state.pdfEditor.basePdf;
 
 export const selectCurrentPage = createSelector(
-    selectPages,
-    selectCurrentPageId,
-    (pages, id) => pages.find(p => p.id === id)
+  selectPages,
+  selectCurrentPageId,
+  (pages, id) => pages.find(p => p.id === id)
 );
 
 export const selectCurrentPageElements = createSelector(
-    selectElements,
-    selectCurrentPageId,
-    (elements, pageId) =>
-        Object.values(elements)
-            .filter(e => e.pageId === pageId)
-            .sort((a, b) => a.zIndex - b.zIndex)
+  selectElements,
+  selectCurrentPageId,
+  (elements, pageId) =>
+    Object.values(elements)
+      .filter(e => e.pageId === pageId)
+      .sort((a, b) => a.zIndex - b.zIndex)
 );
 
 export const selectSelectedElements = createSelector(
-    selectElements,
-    selectSelectedElementIds,
-    (elements, ids) => ids.map(id => elements[id]).filter(Boolean)
+  selectElements,
+  selectSelectedElementIds,
+  (elements, ids) => ids.map(id => elements[id]).filter(Boolean)
 );
 
 export const selectElementById = (id: string) =>
-    createSelector(selectElements, elements => elements[id]);
+  createSelector(selectElements, elements => elements[id]);
 
 export const selectSortedPages = createSelector(
-    selectPages,
-    pages => [...pages].sort((a, b) => a.order - b.order)
+  selectPages,
+  pages => [...pages].sort((a, b) => a.order - b.order)
 );
 
 export { selectState };

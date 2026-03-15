@@ -1,7 +1,11 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import type { PDFPage } from 'pdf-lib';
-import type { Page } from '../../store/pdf-editor/types/state';
+import { PDFDocument, rgb } from 'pdf-lib';
+import type { PDFPage, PDFFont } from 'pdf-lib';
+import type { Page, BasePdfState } from '../../store/pdf-editor/types/state';
 import type { CanvasElement, TableElement, ImageElement, PageNumberElement, QrCodeElement, DateElement, HeadingElement, SignaturePadElement } from '../../store/pdf-editor/types/elements';
+import { STANDARD_PDF_FONTS } from '@/constants/fonts';
+import type { FontFamily } from '@/constants/fonts';
+import { getFontName } from './utils/fonts';
+import { fetchGoogleFontBytes } from './utils/font-loader';
 import { renderText } from './renderers/text-renderer';
 import { renderLine } from './renderers/line-renderer';
 import { renderRectangle } from './renderers/rectangle-renderer';
@@ -31,22 +35,57 @@ interface CrossPageOverflow {
 
 export async function generatePdf(
   pages: Page[],
-  elements: Record<string, CanvasElement>
+  elements: Record<string, CanvasElement>,
+  basePdf?: BasePdfState | null,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
 
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
-  const timesRomanBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
-  const courier = await pdfDoc.embedFont(StandardFonts.Courier);
-  const courierBold = await pdfDoc.embedFont(StandardFonts.CourierBold);
+  // Collect font families actually used — only embed what the document needs
+  const usedFamilies = new Set<FontFamily>(['Helvetica']); // always embed fallback
+  for (const el of Object.values(elements)) {
+    if ('fontFamily' in el && el.fontFamily) usedFamilies.add(el.fontFamily as FontFamily);
+  }
 
-  const fontMap: Record<string, { normal: typeof helvetica; bold: typeof helveticaBold }> = {
-    Helvetica: { normal: helvetica, bold: helveticaBold },
-    Times: { normal: timesRoman, bold: timesRomanBold },
-    Courier: { normal: courier, bold: courierBold },
-  };
+  const fontMap: Record<string, { normal: PDFFont; bold: PDFFont }> = {};
+
+  await Promise.all(
+    Array.from(usedFamilies).map(async (family) => {
+      try {
+        if (STANDARD_PDF_FONTS.has(family)) {
+          fontMap[family] = {
+            normal: await pdfDoc.embedFont(getFontName(family, 'normal', 'normal')),
+            bold:   await pdfDoc.embedFont(getFontName(family, 'bold',   'normal')),
+          };
+        } else {
+          const [normalBytes, boldBytes] = await Promise.all([
+            fetchGoogleFontBytes(family, 'normal', 'normal'),
+            fetchGoogleFontBytes(family, 'bold',   'normal'),
+          ]);
+          fontMap[family] = {
+            normal: await pdfDoc.embedFont(normalBytes),
+            bold:   await pdfDoc.embedFont(boldBytes),
+          };
+        }
+      } catch (err) {
+        console.warn(`Failed to embed font "${family}", falling back to Helvetica:`, err);
+      }
+    }),
+  );
+
+  const helvetica = (fontMap['Helvetica'] ?? Object.values(fontMap)[0]).normal;
+
+  // Pre-embed all base PDF pages so we can stamp them as backgrounds
+  let embeddedBasePages: Awaited<ReturnType<typeof pdfDoc.embedPages>> | null = null;
+  if (basePdf?.data) {
+    try {
+      const base64 = basePdf.data.split(',')[1];
+      const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const basePdfDoc = await PDFDocument.load(bytes);
+      embeddedBasePages = await pdfDoc.embedPages(basePdfDoc.getPages());
+    } catch (err) {
+      console.error('Failed to embed base PDF pages:', err);
+    }
+  }
 
   const sortedPages = [...pages].sort((a, b) => a.order - b.order);
 
@@ -68,7 +107,15 @@ export async function generatePdf(
       prevOverflow = null;
     } else {
       pdfPage = pdfDoc.addPage([canvasPage.width, canvasPage.height]);
-      if (canvasPage.backgroundColor && canvasPage.backgroundColor !== '#ffffff') {
+      // Stamp base PDF page as background (scales it to fill the canvas page exactly)
+      if (embeddedBasePages && embeddedBasePages[pi]) {
+        pdfPage.drawPage(embeddedBasePages[pi], {
+          x: 0,
+          y: 0,
+          width: canvasPage.width,
+          height: canvasPage.height,
+        });
+      } else if (canvasPage.backgroundColor && canvasPage.backgroundColor !== '#ffffff' && canvasPage.backgroundColor !== 'transparent') {
         const r = parseInt(canvasPage.backgroundColor.slice(1, 3), 16) / 255;
         const g = parseInt(canvasPage.backgroundColor.slice(3, 5), 16) / 255;
         const b = parseInt(canvasPage.backgroundColor.slice(5, 7), 16) / 255;
