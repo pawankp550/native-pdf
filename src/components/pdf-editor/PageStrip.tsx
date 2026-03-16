@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { addPage, removePage, duplicatePage, reorderPages, updatePage, setCurrentPage } from '@/store/pdf-editor/slice';
+import { addPage, removePage, duplicatePage, reorderPages, setCurrentPage } from '@/store/pdf-editor/slice';
 import { selectSortedPages, selectCurrentPageId } from '@/store/pdf-editor/selectors';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, MoreHorizontal, Trash2, Copy, ArrowUp, ArrowDown, Pencil } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, Copy, ArrowUp, ArrowDown } from 'lucide-react';
 
 const PAGE_PRESETS = [
     { label: 'A4 Portrait', width: 794, height: 1123 },
@@ -15,14 +15,66 @@ const PAGE_PRESETS = [
     { label: 'Legal Portrait', width: 816, height: 1344 },
 ];
 
+interface PageMenuProps {
+    anchorEl: HTMLElement;
+    totalPages: number;
+    onClose: () => void;
+    onDuplicate: () => void;
+    onMoveUp: () => void;
+    onMoveDown: () => void;
+    onDelete: () => void;
+}
+
+const PageContextMenu = ({ anchorEl, totalPages, onClose, onDuplicate, onMoveUp, onMoveDown, onDelete }: PageMenuProps) => {
+    const menuRef = useRef<HTMLDivElement>(null);
+    const rect = anchorEl.getBoundingClientRect();
+    const menuWidth = 144;
+    const estimatedHeight = totalPages > 1 ? 140 : 110;
+
+    const left = Math.min(rect.left, window.innerWidth - menuWidth - 8);
+    const top = rect.top - estimatedHeight - 4;
+
+    useEffect(() => {
+        const handleClick = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node) && !anchorEl.contains(e.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [anchorEl, onClose]);
+
+    return ReactDOM.createPortal(
+        <div
+            ref={menuRef}
+            className="fixed z-[9999] w-36 bg-popover border rounded shadow-lg text-xs"
+            style={{ left, top }}
+        >
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-accent text-left" onClick={onDuplicate}>
+                <Copy size={11} /> Duplicate
+            </button>
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-accent text-left" onClick={onMoveUp}>
+                <ArrowUp size={11} /> Move Up
+            </button>
+            <button className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-accent text-left" onClick={onMoveDown}>
+                <ArrowDown size={11} /> Move Down
+            </button>
+            {totalPages > 1 && (
+                <button className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-accent text-left text-destructive" onClick={onDelete}>
+                    <Trash2 size={11} /> Delete
+                </button>
+            )}
+        </div>,
+        document.body
+    );
+};
+
 export const PageStrip = React.memo(() => {
     const dispatch = useAppDispatch();
     const pages = useAppSelector(selectSortedPages);
     const currentPageId = useAppSelector(selectCurrentPageId);
     const [addOpen, setAddOpen] = useState(false);
-    const [menuPageId, setMenuPageId] = useState<string | null>(null);
-    const [renamingId, setRenamingId] = useState<string | null>(null);
-    const [renameValue, setRenameValue] = useState('');
+    const [menuState, setMenuState] = useState<{ pageId: string; anchorEl: HTMLElement } | null>(null);
     const [selectedPreset, setSelectedPreset] = useState(0);
 
     const handleAddPage = () => {
@@ -31,12 +83,14 @@ export const PageStrip = React.memo(() => {
         setAddOpen(false);
     };
 
+    const menuPage = menuState ? pages.find(p => p.id === menuState.pageId) : null;
+
     return (
         <footer className="h-[72px] border-t bg-background flex items-center px-3 gap-2 shrink-0 overflow-x-auto">
             {pages.map((page, idx) => (
                 <div
                     key={page.id}
-                    className={`relative flex-shrink-0 flex flex-col items-center justify-center w-14 h-[52px] rounded border-2 cursor-pointer transition-colors ${page.id === currentPageId ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground bg-card'
+                    className={`group relative flex-shrink-0 flex flex-col items-center justify-center w-14 h-[52px] rounded border-2 cursor-pointer transition-colors ${page.id === currentPageId ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground bg-card'
                         }`}
                     onClick={() => dispatch(setCurrentPage(page.id))}
                 >
@@ -45,50 +99,28 @@ export const PageStrip = React.memo(() => {
                     </div>
                     <button
                         className="absolute top-0.5 right-0.5 opacity-0 hover:opacity-100 group-hover:opacity-100 p-0.5 rounded hover:bg-muted"
-                        onClick={e => { e.stopPropagation(); setMenuPageId(menuPageId === page.id ? null : page.id); }}
-                        style={{ opacity: menuPageId === page.id ? 1 : undefined }}
+                        style={{ opacity: menuState?.pageId === page.id ? 1 : undefined }}
+                        onClick={e => {
+                            e.stopPropagation();
+                            setMenuState(menuState?.pageId === page.id ? null : { pageId: page.id, anchorEl: e.currentTarget });
+                        }}
                     >
                         <MoreHorizontal size={10} />
                     </button>
-
-                    {/* Context menu */}
-                    {menuPageId === page.id && (
-                        <div
-                            className="absolute bottom-full mb-1 left-0 z-50 w-36 bg-popover border rounded shadow-lg text-xs"
-                            onMouseLeave={() => setMenuPageId(null)}
-                        >
-                            <button className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-accent text-left" onClick={e => {
-                                e.stopPropagation();
-                                setRenameValue(page.name); setRenamingId(page.id); setMenuPageId(null);
-                            }}>
-                                <Pencil size={11} /> Rename
-                            </button>
-                            <button className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-accent text-left" onClick={e => {
-                                e.stopPropagation(); dispatch(duplicatePage(page.id)); setMenuPageId(null);
-                            }}>
-                                <Copy size={11} /> Duplicate
-                            </button>
-                            <button className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-accent text-left" onClick={e => {
-                                e.stopPropagation(); dispatch(reorderPages({ pageId: page.id, direction: 'up' })); setMenuPageId(null);
-                            }}>
-                                <ArrowUp size={11} /> Move Up
-                            </button>
-                            <button className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-accent text-left" onClick={e => {
-                                e.stopPropagation(); dispatch(reorderPages({ pageId: page.id, direction: 'down' })); setMenuPageId(null);
-                            }}>
-                                <ArrowDown size={11} /> Move Down
-                            </button>
-                            {pages.length > 1 && (
-                                <button className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-accent text-left text-destructive" onClick={e => {
-                                    e.stopPropagation(); dispatch(removePage(page.id)); setMenuPageId(null);
-                                }}>
-                                    <Trash2 size={11} /> Delete
-                                </button>
-                            )}
-                        </div>
-                    )}
                 </div>
             ))}
+
+            {menuState && menuPage && (
+                <PageContextMenu
+                    anchorEl={menuState.anchorEl}
+                    totalPages={pages.length}
+                    onClose={() => setMenuState(null)}
+                    onDuplicate={() => { dispatch(duplicatePage(menuPage.id)); setMenuState(null); }}
+                    onMoveUp={() => { dispatch(reorderPages({ pageId: menuPage.id, direction: 'up' })); setMenuState(null); }}
+                    onMoveDown={() => { dispatch(reorderPages({ pageId: menuPage.id, direction: 'down' })); setMenuState(null); }}
+                    onDelete={() => { dispatch(removePage(menuPage.id)); setMenuState(null); }}
+                />
+            )}
 
             <Button variant="ghost" size="icon" className="flex-shrink-0 h-[52px] w-10" onClick={() => setAddOpen(true)} title="Add page">
                 <Plus size={16} />
@@ -113,22 +145,6 @@ export const PageStrip = React.memo(() => {
                             ))}
                         </div>
                         <Button className="w-full" onClick={handleAddPage}>Add Page</Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Rename Dialog */}
-            <Dialog open={!!renamingId} onOpenChange={open => { if (!open) setRenamingId(null); }}>
-                <DialogContent className="max-w-xs">
-                    <DialogHeader><DialogTitle>Rename Page</DialogTitle></DialogHeader>
-                    <div className="space-y-3">
-                        <Input value={renameValue} onChange={e => setRenameValue(e.target.value)} autoFocus onKeyDown={e => {
-                            if (e.key === 'Enter') { if (renamingId) dispatch(updatePage({ id: renamingId, changes: { name: renameValue } })); setRenamingId(null); }
-                        }} />
-                        <Button className="w-full" onClick={() => {
-                            if (renamingId) dispatch(updatePage({ id: renamingId, changes: { name: renameValue } }));
-                            setRenamingId(null);
-                        }}>Rename</Button>
                     </div>
                 </DialogContent>
             </Dialog>
