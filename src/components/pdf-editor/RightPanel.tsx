@@ -22,15 +22,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { NumberInput } from '@/components/properties/NumberInput';
 import type { CanvasElement } from '@/store/pdf-editor/types/elements';
+import { PAGE_PRESETS as PAGE_SIZES } from '../../constants/pages';
 
-const PAGE_PRESETS = [
-    { label: 'A4 Portrait', width: 794, height: 1123 },
-    { label: 'A4 Landscape', width: 1123, height: 794 },
-    { label: 'Letter Portrait', width: 816, height: 1056 },
-    { label: 'Letter Landscape', width: 1056, height: 816 },
-    { label: 'Legal Portrait', width: 816, height: 1344 },
-    { label: 'Custom', width: 0, height: 0 },
-];
+const PAGE_PRESETS = [...PAGE_SIZES, { label: 'Custom', width: 0, height: 0 }];
 
 function StylePanel({ element }: { element: CanvasElement }) {
     switch (element.type) {

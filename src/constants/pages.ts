@@ -1,0 +1,17 @@
+export const PAGE_PRESETS = [
+    { label: 'A4 Portrait', width: 794, height: 1123 },
+    { label: 'A4 Landscape', width: 1123, height: 794 },
+    { label: 'Letter Portrait', width: 816, height: 1056 },
+    { label: 'Letter Landscape', width: 1056, height: 816 },
+    { label: 'Legal Portrait', width: 816, height: 1344 },
+    { label: 'Legal Landscape', width: 1344, height: 816 },
+    { label: 'Tabloid Portrait', width: 1056, height: 1632 },
+    { label: 'Tabloid Landscape', width: 1632, height: 1056 },
+    { label: 'A3 Portrait', width: 1123, height: 1587 },
+    { label: 'A3 Landscape', width: 1587, height: 1123 },
+    { label: 'A5 Portrait', width: 559, height: 794 },
+    { label: 'A5 Landscape', width: 794, height: 559 },
+    { label: 'B5 Portrait', width: 669, height: 945 },
+    { label: 'Executive Portrait', width: 696, height: 1008 },
+    { label: 'Square (800x800)', width: 800, height: 800 },
+] as const

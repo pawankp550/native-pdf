@@ -65,7 +65,7 @@ export const LeftPanel = React.memo(() => {
                 {filtered.map((section, si) => (
                     <div key={section.title}>
                         {si > 0 && <Separator className="mb-2" />}
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 px-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 px-1">
                             {section.title}
                         </p>
                         <div className="grid grid-cols-1 gap-1.5">

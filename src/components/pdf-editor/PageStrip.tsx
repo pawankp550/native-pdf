@@ -6,14 +6,7 @@ import { selectSortedPages, selectCurrentPageId } from '@/store/pdf-editor/selec
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, MoreHorizontal, Trash2, Copy, ArrowUp, ArrowDown } from 'lucide-react';
-
-const PAGE_PRESETS = [
-    { label: 'A4 Portrait', width: 794, height: 1123 },
-    { label: 'A4 Landscape', width: 1123, height: 794 },
-    { label: 'Letter Portrait', width: 816, height: 1056 },
-    { label: 'Letter Landscape', width: 1056, height: 816 },
-    { label: 'Legal Portrait', width: 816, height: 1344 },
-];
+import { PAGE_PRESETS } from '../../constants/pages';
 
 interface PageMenuProps {
     anchorEl: HTMLElement;
@@ -133,7 +126,7 @@ export const PageStrip = React.memo(() => {
                         <DialogTitle>Add New Page</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3">
-                        <div className="grid grid-cols-1 gap-1.5">
+                        <div className="grid grid-cols-1 gap-1.5 max-h-72 overflow-y-auto pr-1">
                             {PAGE_PRESETS.map((preset, i) => (
                                 <button
                                     key={preset.label}
