@@ -261,7 +261,6 @@ const slice = createSlice({
           width: dim.width,
           height: dim.height,
           order: i,
-          backgroundColor: 'transparent',
         }));
         state.pages = newPages;
         state.currentPageId = newPages[0]?.id ?? '';
@@ -294,6 +293,14 @@ const slice = createSlice({
         [pageEls[idx], pageEls[idx - 1]] = [pageEls[idx - 1], pageEls[idx]];
       }
       pageEls.forEach((e, i) => { state.elements[e.id].zIndex = i; });
+      state.isDirty = true;
+    },
+    addElementsBatch(state, action: PayloadAction<CanvasElement[]>) {
+      if (action.payload.length === 0) return;
+      pushHistory(state);
+      for (const el of action.payload) {
+        state.elements[el.id] = el;
+      }
       state.isDirty = true;
     },
     alignElements(state, action: PayloadAction<{ ids: string[]; alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' }>) {
@@ -330,6 +337,7 @@ export const {
   setZoom, setTemplateName, setShowGrid,
   undo, redo,
   loadTemplateState, markSaved,
+  addElementsBatch,
   reorderElements, alignElements,
   setBasePdf, clearBasePdf,
 } = slice.actions;

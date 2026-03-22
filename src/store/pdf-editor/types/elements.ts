@@ -41,6 +41,8 @@ export interface TextElement extends BaseElement {
   fontColor: string;
   textAlign: 'left' | 'center' | 'right';
   lineHeight: number;
+  letterSpacing: number;   // px, 0 = normal
+  textTransform: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   underline: boolean;
   strikethrough: boolean;
   backgroundColor: string;

@@ -6,8 +6,10 @@ import { renderPdfToImages } from '@/services/pdf-renderer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { generatePdf } from '@/utils/pdf-generator';
+import { generateHtml } from '@/utils/html-generator';
+import { OcrImportDialog } from '@/components/pdf-editor/OcrImportDialog';
 import {
-  Undo2, Redo2, ZoomIn, ZoomOut, Grid3x3, Eye, Download, Upload, FileDown, Moon, Sun, Circle, FileText, X
+  Undo2, Redo2, ZoomIn, ZoomOut, Grid3x3, Eye, Download, Upload, FileDown, Moon, Sun, Circle, FileText, X, ScanText, FileCode
 } from 'lucide-react';
 import type { Page } from '@/store/pdf-editor/types/state';
 import type { CanvasElement } from '@/store/pdf-editor/types/elements';
@@ -38,6 +40,7 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
   const canRedo = useAppSelector(selectCanRedo);
   const pages = useAppSelector(selectPages);
   const elements = useAppSelector(selectElements);
+
   const basePdf = useAppSelector(selectBasePdf);
 
   const loadRef = useRef<HTMLInputElement>(null);
@@ -47,9 +50,17 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
   const [nameValue, setNameValue] = useState(templateName);
   const [exporting, setExporting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [previewingHtml, setPreviewingHtml] = useState(false);
+  const [ocrOpen, setOcrOpen] = useState(false);
 
   const handleSaveTemplate = () => {
-    const data: TemplateFile = { version: '1.0', templateName, savedAt: new Date().toISOString(), pages, elements };
+    const data: TemplateFile = {
+      version: '1.0',
+      templateName,
+      savedAt: new Date().toISOString(),
+      pages,
+      elements,
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -91,7 +102,14 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
         reader.readAsDataURL(file);
       });
       const { pageImages, pageDimensions, pageCount } = await renderPdfToImages(dataUrl);
-      dispatch(setBasePdf({ fileName: file.name, data: dataUrl, pageImages, pageDimensions, pageCount, syncPages: true }));
+      dispatch(setBasePdf({
+        fileName: file.name,
+        data: dataUrl,
+        pageImages,
+        pageDimensions,
+        pageCount,
+        syncPages: true,
+      }));
       toast.success(`Base PDF loaded: ${pageCount} page${pageCount > 1 ? 's' : ''}`);
     } catch (err) {
       console.error(err);
@@ -122,6 +140,23 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
     }
   };
 
+  const handlePreviewHtml = async () => {
+    setPreviewingHtml(true);
+    try {
+      const html = await generateHtml(pages, elements, basePdf);
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const tab = window.open(url, '_blank');
+      if (tab) tab.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+      toast.success('HTML preview opened');
+    } catch (err) {
+      console.error(err);
+      toast.error('HTML preview failed');
+    } finally {
+      setPreviewingHtml(false);
+    }
+  };
+
   const handlePreviewPdf = async () => {
     setPreviewing(true);
     try {
@@ -130,10 +165,10 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
       const url = URL.createObjectURL(blob);
       const tab = window.open(url, '_blank');
       if (tab) tab.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
-      toast.success('Preview opened in new tab');
+      toast.success('PDF preview opened');
     } catch (err) {
       console.error(err);
-      toast.error('Preview failed');
+      toast.error('PDF preview failed');
     } finally {
       setPreviewing(false);
     }
@@ -143,6 +178,7 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
 
   return (
     <header className="h-12 border-b bg-background flex items-center px-3 gap-2 shrink-0 z-10">
+      {/* Left */}
       <div className="flex items-center gap-2 min-w-0">
         <span className="font-bold text-primary text-sm whitespace-nowrap">PDF Editor</span>
         <span className="text-muted-foreground">/</span>
@@ -152,58 +188,132 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
             autoFocus
             className="h-6 w-40 text-sm"
             onChange={e => setNameValue(e.target.value)}
-            onBlur={() => { dispatch(setTemplateName(nameValue)); setEditingName(false); }}
+            onBlur={() => {
+              dispatch(setTemplateName(nameValue));
+              setEditingName(false);
+            }}
             onKeyDown={e => {
               if (e.key === 'Enter') { dispatch(setTemplateName(nameValue)); setEditingName(false); }
               if (e.key === 'Escape') { setNameValue(templateName); setEditingName(false); }
             }}
           />
         ) : (
-          <button className="text-sm font-medium hover:text-primary truncate max-w-[160px]" onClick={() => { setNameValue(templateName); setEditingName(true); }}>
+          <button
+            className="text-sm font-medium hover:text-primary truncate max-w-[160px]"
+            onClick={() => { setNameValue(templateName); setEditingName(true); }}
+          >
             {templateName}
           </button>
         )}
-        {isDirty && <span title="Unsaved changes"><Circle size={6} className="fill-orange-400 text-orange-400" /></span>}
+        {isDirty && (
+          <span title="Unsaved changes">
+            <Circle size={6} className="fill-orange-400 text-orange-400" />
+          </span>
+        )}
       </div>
 
       <div className="flex-1" />
 
+      {/* Center */}
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" disabled={!canUndo} onClick={() => dispatch(undo())} title="Undo (Ctrl+Z)"><Undo2 size={15} /></Button>
-        <Button variant="ghost" size="icon" disabled={!canRedo} onClick={() => dispatch(redo())} title="Redo (Ctrl+Y)"><Redo2 size={15} /></Button>
+        <Button variant="ghost" size="icon" disabled={!canUndo} onClick={() => dispatch(undo())} title="Undo (Ctrl+Z)">
+          <Undo2 size={15} />
+        </Button>
+        <Button variant="ghost" size="icon" disabled={!canRedo} onClick={() => dispatch(redo())} title="Redo (Ctrl+Y)">
+          <Redo2 size={15} />
+        </Button>
+
         <div className="w-px h-5 bg-border mx-1" />
-        <Button variant="ghost" size="icon" onClick={() => dispatch(setZoom(zoom - 0.1))} title="Zoom out"><ZoomOut size={15} /></Button>
-        <select className="h-7 text-xs border rounded px-1 bg-background text-foreground" value={zoomPercent} onChange={e => dispatch(setZoom(Number(e.target.value) / 100))}>
-          {ZOOM_PRESETS.map(z => <option key={z} value={Math.round(z * 100)}>{Math.round(z * 100)}%</option>)}
+
+        <Button variant="ghost" size="icon" onClick={() => dispatch(setZoom(zoom - 0.1))} title="Zoom out">
+          <ZoomOut size={15} />
+        </Button>
+        <select
+          className="h-7 text-xs border rounded px-1 bg-background text-foreground"
+          value={zoomPercent}
+          onChange={e => dispatch(setZoom(Number(e.target.value) / 100))}
+        >
+          {ZOOM_PRESETS.map(z => (
+            <option key={z} value={Math.round(z * 100)}>{Math.round(z * 100)}%</option>
+          ))}
         </select>
-        <Button variant="ghost" size="icon" onClick={() => dispatch(setZoom(zoom + 0.1))} title="Zoom in"><ZoomIn size={15} /></Button>
+        <Button variant="ghost" size="icon" onClick={() => dispatch(setZoom(zoom + 0.1))} title="Zoom in">
+          <ZoomIn size={15} />
+        </Button>
+
         <div className="w-px h-5 bg-border mx-1" />
-        <Button variant={showGrid ? 'secondary' : 'ghost'} size="icon" onClick={() => dispatch(setShowGrid(!showGrid))} title="Toggle grid"><Grid3x3 size={15} /></Button>
-        <Button variant="ghost" size="icon" onClick={handlePreviewPdf} disabled={previewing} title="Preview PDF in new tab"><Eye size={15} /></Button>
+
+        <Button
+          variant={showGrid ? 'secondary' : 'ghost'}
+          size="icon"
+          onClick={() => dispatch(setShowGrid(!showGrid))}
+          title="Toggle grid"
+        >
+          <Grid3x3 size={15} />
+        </Button>
+
+        <Button variant="ghost" size="icon" onClick={handlePreviewHtml} disabled={previewingHtml} title="Preview as HTML (fast)">
+          <FileCode size={15} />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={handlePreviewPdf} disabled={previewing} title="Preview as PDF">
+          <Eye size={15} />
+        </Button>
       </div>
 
       <div className="flex-1" />
 
+      {/* Right */}
       <div className="flex items-center gap-1.5">
-        <Button variant="ghost" size="icon" onClick={onToggleDark} title="Toggle dark mode">{darkMode ? <Sun size={15} /> : <Moon size={15} />}</Button>
+        <Button variant="ghost" size="icon" onClick={onToggleDark} title="Toggle dark mode">
+          {darkMode ? <Sun size={15} /> : <Moon size={15} />}
+        </Button>
         <div className="w-px h-5 bg-border" />
         {basePdf ? (
           <div className="flex items-center gap-1 px-2 h-7 border rounded text-xs bg-primary/10 border-primary/30 max-w-[140px]">
             <FileText size={12} className="shrink-0 text-primary" />
             <span className="truncate text-primary font-medium" title={basePdf.fileName}>{basePdf.fileName}</span>
-            <button className="shrink-0 ml-0.5 hover:text-destructive" title="Remove base PDF" onClick={() => dispatch(clearBasePdf())}><X size={11} /></button>
+            <button
+              className="shrink-0 ml-0.5 hover:text-destructive"
+              title="Remove base PDF"
+              onClick={() => dispatch(clearBasePdf())}
+            >
+              <X size={11} />
+            </button>
           </div>
         ) : (
-          <Button variant="outline" size="sm" disabled={loadingBasePdf} onClick={() => basePdfRef.current?.click()} title="Load a base PDF to use as background">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loadingBasePdf}
+            onClick={() => basePdfRef.current?.click()}
+            title="Load a base PDF to use as background"
+          >
             <FileText size={13} className="mr-1" />
             {loadingBasePdf ? 'Loading…' : 'Base PDF'}
           </Button>
         )}
         <input ref={basePdfRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleBasePdfChange} />
-        <Button variant="outline" size="sm" onClick={handleSaveTemplate} title="Save template as JSON"><Download size={13} className="mr-1" /> Save Template</Button>
-        <Button variant="outline" size="sm" onClick={() => loadRef.current?.click()} title="Load template from JSON"><Upload size={13} className="mr-1" /> Load Template</Button>
+        {basePdf && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setOcrOpen(true)}
+            title="Extract text from the base PDF and place it as editable elements"
+          >
+            <ScanText size={13} className="mr-1" /> Extract Text
+          </Button>
+        )}
+        <OcrImportDialog open={ocrOpen} onClose={() => setOcrOpen(false)} />
+        <Button variant="outline" size="sm" onClick={handleSaveTemplate} title="Save template as JSON">
+          <Download size={13} className="mr-1" /> Save Template
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => loadRef.current?.click()} title="Load template from JSON">
+          <Upload size={13} className="mr-1" /> Load Template
+        </Button>
         <input ref={loadRef} type="file" accept=".json" className="hidden" onChange={handleLoadTemplate} />
-        <Button size="sm" onClick={handleExportPdf} disabled={exporting} title="Export as PDF"><FileDown size={13} className="mr-1" /> {exporting ? 'Exporting…' : 'Export PDF'}</Button>
+        <Button size="sm" onClick={handleExportPdf} disabled={exporting} title="Export as PDF">
+          <FileDown size={13} className="mr-1" /> {exporting ? 'Exporting…' : 'Export PDF'}
+        </Button>
       </div>
     </header>
   );

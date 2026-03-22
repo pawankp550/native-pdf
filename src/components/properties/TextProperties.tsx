@@ -74,6 +74,25 @@ export const TextProperties = React.memo(({ element: el }: Props) => {
               <span className="text-xs w-8 text-right">{el.lineHeight.toFixed(1)}</span>
             </div>
           </div>
+          <div>
+            <Label>Letter Spacing</Label>
+            <div className="flex items-center gap-2 mt-1">
+              <Slider min={-2} max={20} step={0.5} value={[el.letterSpacing ?? 0]} onValueChange={([v]) => update({ letterSpacing: v })} className="flex-1" />
+              <span className="text-xs w-8 text-right">{(el.letterSpacing ?? 0).toFixed(1)}</span>
+            </div>
+          </div>
+          <div>
+            <Label>Text Transform</Label>
+            <Select value={el.textTransform ?? 'none'} onValueChange={v => update({ textTransform: v as TextElement['textTransform'] })}>
+              <SelectTrigger className="mt-0.5 h-7 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="uppercase">UPPERCASE</SelectItem>
+                <SelectItem value="lowercase">lowercase</SelectItem>
+                <SelectItem value="capitalize">Capitalize</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <ColorPicker label="Font Color" value={el.fontColor} onChange={v => update({ fontColor: v })} />
           <ColorPicker label="Background" value={el.backgroundColor === 'transparent' ? '#ffffff' : el.backgroundColor} onChange={v => update({ backgroundColor: v })} />
           <div className="flex items-center justify-between">

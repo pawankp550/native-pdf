@@ -16,7 +16,7 @@ export interface Page {
   width: number;
   height: number;
   order: number;
-  backgroundColor: string;
+  backgroundColor?: string;
 }
 
 export interface PdfEditorSnapshot {
