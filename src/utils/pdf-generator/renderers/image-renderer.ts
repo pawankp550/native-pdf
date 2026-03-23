@@ -1,5 +1,6 @@
 import type { PDFPage, PDFDocument } from 'pdf-lib';
 import type { ImageElement } from '../../../store/pdf-editor/types/elements';
+import { canvasToPdfY } from '../utils/coordinates';
 
 function base64ToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string } {
   const [header, base64] = dataUrl.split(',');
@@ -12,6 +13,29 @@ function base64ToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string }
   return { bytes, mimeType };
 }
 
+function svgToPng(src: string, width: number, height: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let svgSrc = src;
+    if (src.startsWith('data:image/svg+xml;charset=utf-8,')) {
+      const svgStr = decodeURIComponent(src.slice('data:image/svg+xml;charset=utf-8,'.length))
+        .replace(/\bwidth="[^"]*"/, `width="${width}"`)
+        .replace(/\bheight="[^"]*"/, `height="${height}"`);
+      svgSrc = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width);
+      canvas.height = Math.round(height);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = svgSrc;
+  });
+}
+
 export async function renderImage(
   page: PDFPage,
   el: ImageElement,
@@ -20,22 +44,23 @@ export async function renderImage(
 ): Promise<void> {
   if (!el.src) return;
 
-  const { bytes, mimeType } = base64ToBytes(el.src);
+  const src = el.src.startsWith('data:image/svg+xml')
+    ? await svgToPng(el.src, el.width, el.height)
+    : el.src;
+
+  const { bytes, mimeType } = base64ToBytes(src);
 
   let image;
   if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') {
     image = await pdfDoc.embedJpg(bytes);
   } else {
-    // png, gif, webp, svg → embed as png (pdf-lib only supports jpg/png natively)
     image = await pdfDoc.embedPng(bytes);
   }
 
   const pdfX = el.position.x;
-  // canvas Y → PDF Y (bottom-left origin)
-  const pdfY = pageHeight - el.position.y - el.height;
+  const pdfY = canvasToPdfY(el.position.y, el.height, pageHeight);
 
   if (el.objectFit === 'contain') {
-    // Scale uniformly to fit inside the box, centred
     const scale = Math.min(el.width / image.width, el.height / image.height);
     const drawW = image.width * scale;
     const drawH = image.height * scale;
@@ -43,8 +68,6 @@ export async function renderImage(
     const offsetY = (el.height - drawH) / 2;
     page.drawImage(image, { x: pdfX + offsetX, y: pdfY + offsetY, width: drawW, height: drawH });
   } else if (el.objectFit === 'cover') {
-    // Scale uniformly to fill the box — pdf-lib doesn't support clipping,
-    // so we draw at fill size and accept bleed-over (no true clip support).
     const scale = Math.max(el.width / image.width, el.height / image.height);
     const drawW = image.width * scale;
     const drawH = image.height * scale;
@@ -52,7 +75,6 @@ export async function renderImage(
     const offsetY = (el.height - drawH) / 2;
     page.drawImage(image, { x: pdfX + offsetX, y: pdfY + offsetY, width: drawW, height: drawH });
   } else {
-    // fill: stretch to exact box
     page.drawImage(image, { x: pdfX, y: pdfY, width: el.width, height: el.height });
   }
 }

@@ -1,7 +1,7 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import type { PDFPage, PDFFont } from 'pdf-lib';
 import type { Page, BasePdfState } from '../../store/pdf-editor/types/state';
-import type { CanvasElement, TableElement, ImageElement, PageNumberElement, QrCodeElement, DateElement, HeadingElement, SignaturePadElement } from '../../store/pdf-editor/types/elements';
+import type { CanvasElement, TableElement, ImageElement, PageNumberElement, QrCodeElement, DateElement, HeadingElement, SignaturePadElement, LinkElement } from '../../store/pdf-editor/types/elements';
 import { STANDARD_PDF_FONTS } from '@/constants/fonts';
 import type { FontFamily } from '@/constants/fonts';
 import { getFontName } from './utils/fonts';
@@ -19,6 +19,7 @@ import { renderQrCode } from './renderers/qrcode-renderer';
 import { renderDate } from './renderers/date-renderer';
 import { renderHeading } from './renderers/heading-renderer';
 import { renderSignaturePad } from './renderers/signature-pad-renderer';
+import { renderLink } from './renderers/link-renderer';
 
 interface TableOverflow {
   overflowed: boolean; // true when the table created at least one extra PDF page
@@ -224,6 +225,11 @@ export async function generatePdf(
           case 'signature-pad':
             await renderSignaturePad(targetPage, pos as SignaturePadElement, pdfDoc);
             break;
+          case 'link': {
+            const fonts = fontMap[(pos as LinkElement).fontFamily] ?? fontMap['Helvetica'];
+            renderLink(targetPage, pos as LinkElement, fonts.normal);
+            break;
+          }
         }
       } catch (err) {
         console.error(`Error rendering element ${el.id}:`, err);

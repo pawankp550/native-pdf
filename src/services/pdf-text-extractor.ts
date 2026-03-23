@@ -1,9 +1,7 @@
 /**
  * Extracts positioned text blocks, vector shapes, and tables from a PDF.
  *
- * Text strategy (per page):
- *  1. pdfjs getTextContent() — instant, pixel-perfect for digital PDFs.
- *  2. Tesseract OCR fallback for scanned (image-only) pages.
+ * Text strategy: pdfjs getTextContent() — pixel-perfect for digital PDFs.
  *
  * Graphics strategy:
  *  - getOperatorList() → parse stroke/fill ops → lines + rectangles
@@ -21,7 +19,6 @@ if (!('getOrInsertComputed' in Map.prototype)) {
 }
 
 import * as pdfjsLib from 'pdfjs-dist';
-import type Tesseract from 'tesseract.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -41,7 +38,7 @@ export interface ExtractedBlock {
   width: number;
   height: number;
   fontSize: number;
-  fontWeight: 'normal' | 'bold';
+  fontWeight: 'normal' | 'semi-bold' | 'bold';
   pageIndex: number;
 }
 
@@ -70,16 +67,25 @@ export interface ExtractedTable {
   pageIndex: number;
 }
 
+export interface ExtractedIcon {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  dataUrl: string;   // base64 PNG crop of the icon from the rendered page
+  pageIndex: number;
+}
+
 export interface PageExtraction {
   textBlocks: ExtractedBlock[];
   shapes: ExtractedShape[];
   tables: ExtractedTable[];
+  icons: ExtractedIcon[];
 }
 
 export interface ExtractionProgress {
   page: number;
   total: number;
-  method: 'pdfjs' | 'ocr';
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +94,6 @@ export interface ExtractionProgress {
 
 export async function extractFromPdf(
   dataUrl: string,
-  pageImages: string[],
   onProgress?: (p: ExtractionProgress) => void,
 ): Promise<PageExtraction[]> {
   const base64 = dataUrl.split(',')[1];
@@ -101,16 +106,34 @@ export async function extractFromPdf(
     const viewport = page.getViewport({ scale: SCALE });
 
     // --- Text ---
+    onProgress?.({ page: i, total: pdf.numPages });
     const textContent = await page.getTextContent();
-    const hasText = textContent.items.some((it: any) => it.str?.trim());
+    const { blocks: textBlocks, iconBboxes } = extractFromPdfjsItems(textContent.items, viewport, i - 1);
 
-    let textBlocks: ExtractedBlock[];
-    if (hasText) {
-      onProgress?.({ page: i, total: pdf.numPages, method: 'pdfjs' });
-      textBlocks = extractFromPdfjsItems(textContent.items, viewport, i - 1);
-    } else {
-      onProgress?.({ page: i, total: pdf.numPages, method: 'ocr' });
-      textBlocks = await extractViaOcr(pageImages[i - 1], viewport.width, viewport.height, i - 1);
+    // --- Icon pixel crops ---
+    // Render the page BEFORE getOperatorList so both don't compete for the
+    // internal rendering pipeline. Crop each icon bounding box into a PNG.
+    const icons: ExtractedIcon[] = [];
+    if (iconBboxes.length > 0) {
+      try {
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = Math.round(viewport.width);
+        pageCanvas.height = Math.round(viewport.height);
+        await page.render({ canvas: pageCanvas, viewport }).promise;
+
+        for (const bbox of iconBboxes) {
+          const w = Math.ceil(bbox.width);
+          const h = Math.ceil(bbox.height);
+          if (w < 1 || h < 1) continue;
+          const crop = document.createElement('canvas');
+          crop.width = w;
+          crop.height = h;
+          crop.getContext('2d')!.drawImage(pageCanvas, Math.round(bbox.x), Math.round(bbox.y), w, h, 0, 0, w, h);
+          icons.push({ x: bbox.x, y: bbox.y, width: w, height: h, dataUrl: crop.toDataURL('image/png'), pageIndex: i - 1 });
+        }
+      } catch (err) {
+        console.warn(`Icon render failed for page ${i}:`, err);
+      }
     }
 
     // --- Graphics ---
@@ -120,7 +143,7 @@ export async function extractFromPdf(
     // --- Table detection ---
     const { tables, remainingShapes, remainingBlocks } = detectTables(rawShapes, textBlocks, i - 1);
 
-    result.push({ textBlocks: remainingBlocks, shapes: remainingShapes, tables });
+    result.push({ textBlocks: remainingBlocks, shapes: remainingShapes, tables, icons });
     page.cleanup();
   }
 
@@ -130,10 +153,9 @@ export async function extractFromPdf(
 /** Legacy export kept for backward compat */
 export async function extractTextFromPdf(
   dataUrl: string,
-  pageImages: string[],
   onProgress?: (p: ExtractionProgress) => void,
 ): Promise<ExtractedBlock[][]> {
-  const pages = await extractFromPdf(dataUrl, pageImages, onProgress);
+  const pages = await extractFromPdf(dataUrl, onProgress);
   return pages.map(p => p.textBlocks);
 }
 
@@ -141,54 +163,89 @@ export async function extractTextFromPdf(
 // Text extraction — pdf.js items → grouped lines
 // ---------------------------------------------------------------------------
 
+interface IconBbox { x: number; y: number; width: number; height: number; }
+
 function extractFromPdfjsItems(
   items: any[],
   viewport: pdfjsLib.PageViewport,
   pageIndex: number,
-): ExtractedBlock[] {
+): { blocks: ExtractedBlock[]; iconBboxes: IconBbox[] } {
   interface Raw {
     text: string; x: number; y: number;
     width: number; height: number;
-    fontSize: number; fontWeight: 'normal' | 'bold';
+    fontSize: number; fontWeight: 'normal' | 'semi-bold' | 'bold';
   }
 
+  // Separate icon-font glyphs (Unicode Private Use Area) from regular text.
+  // Icons are collected as bounding boxes so the caller can pixel-crop them.
+  const PUA_RE = /^[\uE000-\uF8FF\uFFF0-\uFFFF]+$/;
+  const iconBboxes: IconBbox[] = [];
   const raw: Raw[] = items
-    .filter((it: any) => it.str?.trim())
+    .filter((it: any) => {
+      if (!it.str?.trim()) return false;
+      if (PUA_RE.test(it.str)) {
+        // Collect icon bbox for later pixel-crop from rendered page
+        const fontSizePt = Math.abs(it.transform[3]) || 10;
+        const fontSizePx = fontSizePt * SCALE;
+        const [vpx, vpy] = viewport.convertToViewportPoint(it.transform[4], it.transform[5]);
+        const widthPx = it.width > 0 ? it.width * SCALE : fontSizePx;
+        const w = Math.max(widthPx, fontSizePx * 0.5);
+        const h = Math.ceil(fontSizePx * 1.25);
+        if (w >= 4 && h >= 4) {
+          iconBboxes.push({ x: Math.max(0, vpx), y: Math.max(0, vpy - fontSizePx), width: w, height: h });
+        }
+        return false;
+      }
+      return true;
+    })
     .map((it: any) => {
       const fontSizePt = Math.abs(it.transform[3]) || 10;
       const fontSizePx = fontSizePt * SCALE;
       const [vpx, vpy] = viewport.convertToViewportPoint(it.transform[4], it.transform[5]);
       const fontName: string = (it.fontName ?? '').toLowerCase();
-      const isBold = /bold|black|heavy|demi/.test(fontName);
+      // Check semi-bold first so "SemiBold"/"DemiBold"/"Medium" don't fall into isBold
+      const isSemiBold = /semibold|demibold|demi|medium/.test(fontName);
+      const isBold = !isSemiBold && /bold|black|heavy/.test(fontName);
+      // it.width is in text-space units (same scale as fontSizePt).
+      // Fall back to character-count estimate when width is missing or zero.
+      const widthPx = it.width > 0
+        ? it.width * SCALE
+        : it.str.length * fontSizePx * 0.55;
       return {
         text: it.str,
         x: vpx,
         y: vpy - fontSizePx,
-        width: Math.max((it.width || fontSizePt) * SCALE, 4),
+        width: Math.max(widthPx, 4),
         height: Math.ceil(fontSizePx * 1.25),
         fontSize: Math.round(fontSizePx),
-        fontWeight: isBold ? 'bold' : 'normal',
+        fontWeight: isBold ? 'bold' : isSemiBold ? 'semi-bold' : 'normal',
       } as Raw;
     });
 
-  if (raw.length === 0) return [];
+  if (raw.length === 0) return { blocks: [], iconBboxes };
 
-  // Group into lines by Y proximity
+  // Group into lines by Y proximity.
   const lines: Raw[][] = [];
   for (const block of [...raw].sort((a, b) => a.y - b.y)) {
-    const line = lines.find(l => Math.abs(l[0].y - block.y) < block.height * 0.55);
+    const blockMid = block.y + block.height / 2;
+    const line = lines.find(l => {
+      const lineTop = Math.min(...l.map(b => b.y));
+      const lineBot = Math.max(...l.map(b => b.y + b.height));
+      const lineMid = (lineTop + lineBot) / 2;
+      return Math.abs(lineMid - blockMid) < block.height * 0.6;
+    });
     if (line) line.push(block);
     else lines.push([block]);
   }
 
-  return lines
+  const blocks: ExtractedBlock[] = lines
     .map(line => {
       const sorted = [...line].sort((a, b) => a.x - b.x);
       let text = '';
       for (let i = 0; i < sorted.length; i++) {
         if (i > 0) {
           const gap = sorted[i].x - (sorted[i - 1].x + sorted[i - 1].width);
-          if (gap > sorted[i].fontSize * 0.25) text += ' ';
+          if (gap > sorted[i].fontSize * 0.35) text += ' ';
         }
         text += sorted[i].text;
       }
@@ -199,52 +256,17 @@ function extractFromPdfjsItems(
         width: Math.max(Math.max(...sorted.map(b => b.x + b.width)) - sorted[0].x, 10),
         height: Math.max(...sorted.map(b => b.height)),
         fontSize: sorted[0].fontSize,
-        fontWeight: sorted.some(b => b.fontWeight === 'bold') ? 'bold' : 'normal',
+        fontWeight: sorted.some(b => b.fontWeight === 'bold')
+          ? 'bold'
+          : sorted.some(b => b.fontWeight === 'semi-bold')
+            ? 'semi-bold'
+            : 'normal',
         pageIndex,
       } as ExtractedBlock;
     })
     .filter(b => b.text.length > 0);
-}
 
-// ---------------------------------------------------------------------------
-// Tesseract OCR fallback
-// ---------------------------------------------------------------------------
-
-async function extractViaOcr(
-  pageImage: string,
-  canvasWidth: number,
-  canvasHeight: number,
-  pageIndex: number,
-): Promise<ExtractedBlock[]> {
-  const { createWorker } = await import('tesseract.js');
-  const imgSize = await measureImage(pageImage);
-  const scaleX = canvasWidth / imgSize.width;
-  const scaleY = canvasHeight / imgSize.height;
-  const worker = await createWorker('eng', 1, { logger: () => {} });
-  try {
-    const { data } = await worker.recognize(pageImage);
-    const lines = (data.blocks ?? []).flatMap(b =>
-      (b.paragraphs ?? []).flatMap(p => p.lines ?? []),
-    );
-    return lines
-      .filter((l: Tesseract.Line) => l.text.trim() && l.confidence > 30)
-      .map((l: Tesseract.Line) => {
-        const w = (l.bbox.x1 - l.bbox.x0) * scaleX;
-        const h = (l.bbox.y1 - l.bbox.y0) * scaleY;
-        return {
-          text: l.text.trim(),
-          x: l.bbox.x0 * scaleX,
-          y: l.bbox.y0 * scaleY,
-          width: Math.max(w, 10),
-          height: Math.max(h, 10),
-          fontSize: Math.max(6, Math.round(h * 0.72)),
-          fontWeight: 'normal',
-          pageIndex,
-        } as ExtractedBlock;
-      });
-  } finally {
-    await worker.terminate();
-  }
+  return { blocks, iconBboxes };
 }
 
 // ---------------------------------------------------------------------------
@@ -272,19 +294,14 @@ function extractShapesFromOpList(
     const fn = fnArray[i];
     const a = argsArray[i];
 
-    // --- Graphics state ---
     if      (fn === OPS.setLineWidth)       lineWidthPt = a[0];
     else if (fn === OPS.setStrokeRGBColor)  strokeColor = rgbToHex(a[0], a[1], a[2]);
     else if (fn === OPS.setFillRGBColor)    fillColor   = rgbToHex(a[0], a[1], a[2]);
     else if (fn === OPS.setStrokeGray)      strokeColor = grayToHex(a[0]);
     else if (fn === OPS.setFillGray)        fillColor   = grayToHex(a[0]);
-
-    // --- Path construction ---
     else if (fn === OPS.constructPath) {
       pendingPath = { subOps: Array.from(a[0] as number[]), coords: Array.from(a[1] as number[]) };
     }
-
-    // --- Path painting ---
     else if (fn === OPS.stroke || fn === OPS.closeStroke) {
       if (pendingPath) {
         const s = pathToShape(pendingPath, toVP, lineWidthPt * SCALE, strokeColor, 'transparent', pageIndex);
@@ -387,7 +404,6 @@ function pathToShape(
 
   const sw = Math.max(strokeWidth, 1);
 
-  // Straight horizontal or vertical line
   if (dy <= sw * 2 && dx > 3) {
     return { kind: 'hline', x: minX, y: minY, width: dx, height: sw, strokeColor, strokeWidth: sw, fillColor: 'transparent', pageIndex };
   }
@@ -395,7 +411,6 @@ function pathToShape(
     return { kind: 'vline', x: minX, y: minY, width: sw, height: dy, strokeColor, strokeWidth: sw, fillColor: 'transparent', pageIndex };
   }
 
-  // Closed rectangular path (4 corners with only 2 unique X and 2 unique Y)
   if (points.length >= 4) {
     const uxs = [...new Set(xs.map(x => Math.round(x)))];
     const uys = [...new Set(ys.map(y => Math.round(y)))];
@@ -427,19 +442,20 @@ function detectTables(
     return { tables: [], remainingShapes: shapes, remainingBlocks: textBlocks };
   }
 
-  // Group rects that form a grid: same rows (same y±tol) and same cols (same x±tol)
   const TOL = 4;
   const snap = (v: number) => Math.round(v / TOL) * TOL;
 
-  // Cluster by top-Y to find rows
+  const MIN_CELL_W = 30;
+  const MIN_CELL_H = 15;
+
   const rowGroups = new Map<number, ExtractedShape[]>();
   for (const r of rects) {
+    if (r.width < MIN_CELL_W || r.height < MIN_CELL_H) continue;
     const key = snap(r.y);
     if (!rowGroups.has(key)) rowGroups.set(key, []);
     rowGroups.get(key)!.push(r);
   }
 
-  // A table candidate: ≥2 rows that have the same number of rects and same X positions
   const usedRectIds = new Set<number>();
   const tables: ExtractedTable[] = [];
 
@@ -452,7 +468,6 @@ function detectTables(
     const colCount = firstRow.length;
     const colXs = firstRow.map(r => snap(r.x));
 
-    // Find consecutive rows with matching column structure
     const gridRows: ExtractedShape[][] = [firstRow];
 
     for (let rj = ri + 1; rj < sortedRowKeys.length; rj++) {
@@ -465,12 +480,10 @@ function detectTables(
 
     if (gridRows.length < 2) continue;
 
-    // Mark rects as used
     const flatRects = gridRows.flat();
     const rectIndices = flatRects.map(r => rects.indexOf(r));
     rectIndices.forEach(idx => usedRectIds.add(idx));
 
-    // Build table geometry
     const colWidths = firstRow.map(r => r.width);
     const rowHeights = gridRows.map(row => Math.max(...row.map(r => r.height)));
 
@@ -479,16 +492,25 @@ function detectTables(
     const tableW = Math.max(...flatRects.map(r => r.x + r.width)) - tableX;
     const tableH = Math.max(...flatRects.map(r => r.y + r.height)) - tableY;
 
-    // Collect text inside each cell
     const cells: string[][] = gridRows.map(row =>
       row.map(cell => {
-        const inside = textBlocks.filter(b =>
-          b.x >= cell.x - TOL && b.x + b.width <= cell.x + cell.width + TOL &&
-          b.y >= cell.y - TOL && b.y + b.height <= cell.y + cell.height + TOL,
-        );
+        const inside = textBlocks
+          .filter(b => {
+            const cx = b.x + b.width / 2;
+            const cy = b.y + b.height / 2;
+            return cx >= cell.x - TOL && cx <= cell.x + cell.width + TOL &&
+                   cy >= cell.y - TOL && cy <= cell.y + cell.height + TOL;
+          })
+          .sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
         return inside.map(b => b.text).join(' ').trim();
       }),
     );
+
+    const hasAnyText = cells.some(row => row.some(cell => cell.length > 0));
+    if (!hasAnyText) {
+      rectIndices.forEach(idx => usedRectIds.delete(idx));
+      continue;
+    }
 
     const borderColor = firstRow[0].strokeColor !== 'transparent' ? firstRow[0].strokeColor : '#000000';
 
@@ -500,16 +522,17 @@ function detectTables(
       pageIndex,
     });
 
-    ri += gridRows.length - 1; // skip consumed rows
+    ri += gridRows.length - 1;
   }
 
-  // Remove rects absorbed into tables + text blocks inside tables
-  const tableRegions = tables;
-  const absorbedBlock = (b: ExtractedBlock) =>
-    tableRegions.some(t =>
-      b.x >= t.x - TOL && b.x + b.width <= t.x + t.width + TOL &&
-      b.y >= t.y - TOL && b.y + b.height <= t.y + t.height + TOL,
+  const absorbedBlock = (b: ExtractedBlock) => {
+    const cx = b.x + b.width / 2;
+    const cy = b.y + b.height / 2;
+    return tables.some(t =>
+      cx >= t.x - TOL && cx <= t.x + t.width + TOL &&
+      cy >= t.y - TOL && cy <= t.y + t.height + TOL,
     );
+  };
 
   const remainingShapes = [
     ...nonRects,
@@ -531,13 +554,4 @@ function rgbToHex(r: number, g: number, b: number): string {
 
 function grayToHex(g: number): string {
   return rgbToHex(g, g, g);
-}
-
-function measureImage(src: string): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = reject;
-    img.src = src;
-  });
 }

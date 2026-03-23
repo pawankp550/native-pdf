@@ -9,11 +9,12 @@ import {
   type ExtractedBlock,
   type ExtractedShape,
   type ExtractedTable,
+  type ExtractedIcon,
   type ExtractionProgress,
 } from '@/services/pdf-text-extractor';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import type { CanvasElement, TextElement, LineElement, RectangleElement, TableElement, TableColumn } from '@/store/pdf-editor/types/elements';
+import type { CanvasElement, TextElement, LineElement, RectangleElement, TableElement, TableColumn, ImageElement } from '@/store/pdf-editor/types/elements';
 import { ScanText, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 interface Props {
@@ -23,13 +24,28 @@ interface Props {
 
 type Phase =
   | { kind: 'idle' }
-  | { kind: 'extracting'; page: number; total: number; method: 'pdfjs' | 'ocr' }
+  | { kind: 'extracting'; page: number; total: number }
   | { kind: 'done'; pages: PageExtraction[] }
   | { kind: 'error'; message: string };
 
-// ---------------------------------------------------------------------------
-// Converters
-// ---------------------------------------------------------------------------
+let _measureCtx: CanvasRenderingContext2D | null = null;
+function getMeasureCtx(): CanvasRenderingContext2D | null {
+  if (_measureCtx) return _measureCtx;
+  try {
+    const canvas = document.createElement('canvas');
+    _measureCtx = canvas.getContext('2d');
+  } catch {
+    _measureCtx = null;
+  }
+  return _measureCtx;
+}
+
+function measureBrowserTextWidth(text: string, fontSize: number, fontWeight: string): number {
+  const ctx = getMeasureCtx();
+  if (!ctx) return 0;
+  ctx.font = `${fontWeight} ${fontSize}px Helvetica, Arial, sans-serif`;
+  return ctx.measureText(text).width;
+}
 
 function textBlockToElement(
   block: ExtractedBlock,
@@ -37,20 +53,26 @@ function textBlockToElement(
   zIndex: number,
 ): TextElement {
   const fontSize = Math.max(6, Math.min(144, block.fontSize));
+  const preview = block.text.slice(0, 24).trim();
+  const name = preview.length < block.text.length ? `${preview}…` : preview;
+  const lineHeight = fontSize >= 18 ? 1.1 : 1.3;
+  const fontWeightStr = block.fontWeight === 'bold' ? '700' : block.fontWeight === 'semi-bold' ? '600' : '400';
+  const browserWidth = measureBrowserTextWidth(block.text, fontSize, fontWeightStr);
+  const textWidth = Math.max(Math.round(block.width), Math.ceil(browserWidth));
   return {
-    id: nanoid(), name: 'Text', type: 'text', pageId,
+    id: nanoid(), name, type: 'text', pageId,
     position: { x: Math.round(block.x), y: Math.round(block.y) },
-    width: Math.max(Math.round(block.width), 40),
+    width: Math.max(textWidth + 8, fontSize * 2),
     height: Math.max(Math.round(block.height), fontSize + 4),
     rotate: 0, opacity: 1, zIndex, locked: false, visible: true,
     content: block.text,
     fontSize,
     fontFamily: 'Helvetica',
-    fontWeight: block.fontWeight,
+    fontWeight: fontWeightStr,
     fontStyle: 'normal',
     fontColor: '#000000',
     textAlign: 'left',
-    lineHeight: 1.2,
+    lineHeight,
     letterSpacing: 0,
     textTransform: 'none',
     underline: false,
@@ -105,7 +127,6 @@ function tableToElement(
     width: Math.max(Math.round(w), 20),
   }));
 
-  // If first row looks like a header (bold or all-caps), use it as column labels
   const firstRow = table.cells[0] ?? [];
   const looksLikeHeader = firstRow.every(c => c && (c === c.toUpperCase() || c.length < 30));
   if (looksLikeHeader && table.cells.length > 1) {
@@ -142,9 +163,21 @@ function tableToElement(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+function iconToElement(
+  icon: ExtractedIcon,
+  pageId: string,
+  zIndex: number,
+): ImageElement {
+  return {
+    id: nanoid(), name: 'Icon', type: 'image', pageId,
+    position: { x: Math.round(icon.x), y: Math.round(icon.y) },
+    width: Math.round(icon.width),
+    height: Math.round(icon.height),
+    rotate: 0, opacity: 1, zIndex, locked: false, visible: true,
+    src: icon.dataUrl,
+    objectFit: 'contain',
+  };
+}
 
 export const OcrImportDialog = React.memo(({ open, onClose }: Props) => {
   const dispatch = useAppDispatch();
@@ -163,10 +196,9 @@ export const OcrImportDialog = React.memo(({ open, onClose }: Props) => {
 
     extractFromPdf(
       basePdf.data,
-      basePdf.pageImages,
       (p: ExtractionProgress) => {
         if (cancelled) return;
-        setPhase({ kind: 'extracting', page: p.page, total: p.total, method: p.method });
+        setPhase({ kind: 'extracting', page: p.page, total: p.total });
       },
     )
       .then(result => { if (!cancelled) setPhase({ kind: 'done', pages: result }); })
@@ -187,9 +219,33 @@ export const OcrImportDialog = React.memo(({ open, onClose }: Props) => {
       const base = Object.values(elements).filter(e => e.pageId === page.id).length;
       let zi = base;
 
-      pageData.textBlocks.forEach(b => { newEls.push(textBlockToElement(b, page.id, zi++)); });
-      pageData.shapes.forEach(s => { newEls.push(shapeToElement(s, page.id, zi++)); });
+      const textEls = pageData.textBlocks.map(b => textBlockToElement(b, page.id, zi++));
+
+      const underlineShapeIndices = new Set<number>();
+      textEls.forEach((el, bi) => {
+        const block = pageData.textBlocks[bi];
+        const textBottom = block.y + block.height;
+        const maxUnderlineY = textBottom + block.fontSize * 0.35;
+        pageData.shapes.forEach((shape, si) => {
+          if (underlineShapeIndices.has(si) || shape.kind !== 'hline') return;
+          const shapeY = shape.y + shape.height / 2;
+          if (shapeY < textBottom - 2 || shapeY > maxUnderlineY) return;
+          const overlap = Math.max(0,
+            Math.min(shape.x + shape.width, block.x + block.width) - Math.max(shape.x, block.x)
+          );
+          if (overlap / block.width >= 0.5) {
+            el.underline = true;
+            underlineShapeIndices.add(si);
+          }
+        });
+        newEls.push(el);
+      });
+
+      pageData.shapes.forEach((s, si) => {
+        if (!underlineShapeIndices.has(si)) newEls.push(shapeToElement(s, page.id, zi++));
+      });
       pageData.tables.forEach(t => { newEls.push(tableToElement(t, page.id, zi++)); });
+      pageData.icons.forEach(icon => { newEls.push(iconToElement(icon, page.id, zi++)); });
     });
 
     dispatch(addElementsBatch(newEls));
@@ -203,9 +259,10 @@ export const OcrImportDialog = React.memo(({ open, onClose }: Props) => {
     text: phase.pages.reduce((s, p) => s + p.textBlocks.length, 0),
     shapes: phase.pages.reduce((s, p) => s + p.shapes.length, 0),
     tables: phase.pages.reduce((s, p) => s + p.tables.length, 0),
+    icons: phase.pages.reduce((s, p) => s + p.icons.length, 0),
   } : null;
 
-  const totalAll = totals ? totals.text + totals.shapes + totals.tables : 0;
+  const totalAll = totals ? totals.text + totals.shapes + totals.tables + totals.icons : 0;
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
@@ -218,14 +275,13 @@ export const OcrImportDialog = React.memo(({ open, onClose }: Props) => {
         </DialogHeader>
 
         <div className="space-y-4 py-1">
-          {/* Extracting */}
           {(phase.kind === 'idle' || phase.kind === 'extracting') && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 size={14} className="animate-spin shrink-0" />
                 {phase.kind === 'idle'
                   ? 'Starting extraction…'
-                  : `Processing page ${phase.page} of ${phase.total} via ${phase.method === 'ocr' ? 'OCR (slow)' : 'text layer'}…`}
+                  : `Processing page ${phase.page} of ${phase.total}…`}
               </div>
               {phase.kind === 'extracting' && (
                 <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
@@ -235,15 +291,9 @@ export const OcrImportDialog = React.memo(({ open, onClose }: Props) => {
                   />
                 </div>
               )}
-              {phase.kind === 'extracting' && phase.method === 'ocr' && (
-                <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-2 py-1.5 leading-relaxed">
-                  Scanned page — running OCR. May take 10–30 seconds.
-                </p>
-              )}
             </div>
           )}
 
-          {/* Done */}
           {phase.kind === 'done' && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
@@ -253,11 +303,12 @@ export const OcrImportDialog = React.memo(({ open, onClose }: Props) => {
 
               <div className="rounded border bg-muted/40 divide-y text-xs max-h-52 overflow-y-auto">
                 {phase.pages.map((p, i) => (
-                  <div key={i} className="grid grid-cols-4 gap-1 px-3 py-2 items-center">
+                  <div key={i} className="grid grid-cols-5 gap-1 px-3 py-2 items-center">
                     <span className="font-medium text-foreground">Page {i + 1}</span>
                     <span className="text-muted-foreground text-center">{p.textBlocks.length} text</span>
                     <span className="text-muted-foreground text-center">{p.shapes.length} shapes</span>
                     <span className="text-muted-foreground text-center">{p.tables.length} tables</span>
+                    <span className="text-muted-foreground text-center">{p.icons.length} icons</span>
                   </div>
                 ))}
               </div>
@@ -267,15 +318,15 @@ export const OcrImportDialog = React.memo(({ open, onClose }: Props) => {
               ) : (
                 <p className="text-xs text-muted-foreground">
                   Found <strong>{totals!.text}</strong> text blocks,{' '}
-                  <strong>{totals!.shapes}</strong> shapes, and{' '}
-                  <strong>{totals!.tables}</strong> tables across {phase.pages.length} page{phase.pages.length !== 1 ? 's' : ''}.
+                  <strong>{totals!.shapes}</strong> shapes,{' '}
+                  <strong>{totals!.tables}</strong> tables, and{' '}
+                  <strong>{totals!.icons}</strong> icons across {phase.pages.length} page{phase.pages.length !== 1 ? 's' : ''}.
                   All will be placed as editable elements.
                 </p>
               )}
             </div>
           )}
 
-          {/* Error */}
           {phase.kind === 'error' && (
             <div className="flex items-start gap-2 text-sm text-destructive">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />

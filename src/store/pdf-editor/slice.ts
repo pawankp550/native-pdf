@@ -261,6 +261,7 @@ const slice = createSlice({
           width: dim.width,
           height: dim.height,
           order: i,
+          backgroundColor: '#ffffff',
         }));
         state.pages = newPages;
         state.currentPageId = newPages[0]?.id ?? '';

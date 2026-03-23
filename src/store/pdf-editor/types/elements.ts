@@ -14,7 +14,8 @@ export type ElementType =
   | 'page-number'
   | 'qr-code'
   | 'date'
-  | 'heading';
+  | 'heading'
+  | 'link';
 
 export interface BaseElement {
   id: string;
@@ -36,7 +37,7 @@ export interface TextElement extends BaseElement {
   content: string;
   fontSize: number;
   fontFamily: FontFamily;
-  fontWeight: 'normal' | 'bold';
+  fontWeight: '400' | '600' | '700';
   fontStyle: 'normal' | 'italic';
   fontColor: string;
   textAlign: 'left' | 'center' | 'right';
@@ -47,6 +48,7 @@ export interface TextElement extends BaseElement {
   strikethrough: boolean;
   backgroundColor: string;
   padding: number;
+  url?: string;            // optional hyperlink — rendered as a PDF URI annotation
 }
 
 export interface LineElement extends BaseElement {
@@ -194,6 +196,17 @@ export interface HeadingElement extends BaseElement {
   underline: boolean;
 }
 
+export interface LinkElement extends BaseElement {
+  type: 'link';
+  label: string;           // visible link text
+  url: string;             // destination URL
+  fontSize: number;
+  fontFamily: FontFamily;
+  fontColor: string;       // defaults to #2563eb
+  textAlign: 'left' | 'center' | 'right';
+  padding: number;
+}
+
 export type CanvasElement =
   | TextElement
   | LineElement
@@ -207,4 +220,5 @@ export type CanvasElement =
   | PageNumberElement
   | QrCodeElement
   | DateElement
-  | HeadingElement;
+  | HeadingElement
+  | LinkElement;

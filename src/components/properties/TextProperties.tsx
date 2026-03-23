@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { NumberInput } from './NumberInput';
 import { ColorPicker } from './ColorPicker';
+import { Input } from '@/components/ui/input';
 
 interface Props { element: TextElement }
 
@@ -39,8 +40,9 @@ export const TextProperties = React.memo(({ element: el }: Props) => {
               <Select value={el.fontWeight} onValueChange={v => update({ fontWeight: v as TextElement['fontWeight'] })}>
                 <SelectTrigger className="mt-0.5 h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="bold">Bold</SelectItem>
+                  <SelectItem value="400">Regular</SelectItem>
+                  <SelectItem value="600">Semi Bold</SelectItem>
+                  <SelectItem value="700">Bold</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -104,6 +106,15 @@ export const TextProperties = React.memo(({ element: el }: Props) => {
             <Switch checked={el.strikethrough} onCheckedChange={v => update({ strikethrough: v })} />
           </div>
           <NumberInput label="Padding" value={el.padding} min={0} max={40} onChange={v => update({ padding: v })} />
+          <div>
+            <Label>Link URL</Label>
+            <Input
+              className="mt-0.5 h-7 text-xs"
+              placeholder="https://example.com"
+              value={el.url ?? ''}
+              onChange={e => update({ url: e.target.value })}
+            />
+          </div>
         </div>
       </AccordionContent>
     </AccordionItem>

@@ -15,6 +15,7 @@ import type {
   PageNumberElement,
   QrCodeElement,
   DateElement,
+  LinkElement,
 } from '../../store/pdf-editor/types/elements';
 import { formatDate, parseIsoDate } from '../date-format';
 
@@ -118,6 +119,7 @@ function renderElement(
     case 'page-number': return renderPageNumber(el, base, pageNumber, totalPages);
     case 'qr-code':  return renderQrCode(el, base, qrDataUrls);
     case 'date':     return renderDate(el, base);
+    case 'link':     return renderLink(el, base);
     default:         return '';
   }
 }
@@ -142,24 +144,30 @@ function esc(s: string): string {
 // ---------------------------------------------------------------------------
 
 function renderText(el: TextElement, base: string): string {
+  const hasLink = !!el.url?.trim();
   const td = [
-    el.underline ? 'underline' : '',
+    (el.underline || hasLink) ? 'underline' : '',
     el.strikethrough ? 'line-through' : '',
   ].filter(Boolean).join(' ') || 'none';
   const ls = el.letterSpacing ? `letter-spacing:${el.letterSpacing}px;` : '';
   const tt = el.textTransform && el.textTransform !== 'none' ? `text-transform:${el.textTransform};` : '';
+  const color = hasLink ? '#2563eb' : el.fontColor;
+  const cursor = hasLink ? 'cursor:pointer;' : '';
   const style = `${base}
     font-size:${el.fontSize}px;
     font-family:${el.fontFamily},Helvetica,sans-serif;
     font-weight:${el.fontWeight};
     font-style:${el.fontStyle};
-    color:${el.fontColor};
+    color:${color};
     text-align:${el.textAlign};
     line-height:${el.lineHeight};
-    text-decoration:${td};${ls}${tt}
+    text-decoration:${td};${ls}${tt}${cursor}
     background:${el.backgroundColor};
     padding:${el.padding}px;
     white-space:pre-wrap;word-break:break-word;`;
+  if (hasLink) {
+    return `<a class="el" href="${el.url}" target="_blank" rel="noopener noreferrer" style="${style}">${esc(el.content)}</a>`;
+  }
   return `<div class="el" style="${style}">${esc(el.content)}</div>`;
 }
 
@@ -301,6 +309,20 @@ function renderQrCode(el: QrCodeElement, base: string, qrDataUrls: Map<string, s
     return `<div class="el" style="${style};color:#9ca3af;font-size:11px;">QR Code</div>`;
   }
   return `<div class="el" style="${style}"><img src="${dataUrl}" style="max-width:100%;max-height:100%;" /></div>`;
+}
+
+function renderLink(el: LinkElement, base: string): string {
+  const label = el.label || el.url;
+  const style = `${base}
+    font-size:${el.fontSize}px;
+    font-family:${el.fontFamily},Helvetica,sans-serif;
+    color:${el.fontColor};
+    text-align:${el.textAlign};
+    text-decoration:underline;
+    padding:${el.padding}px;
+    display:flex;align-items:center;cursor:pointer;`;
+  const href = el.url?.trim() ? ` href="${el.url.trim()}" target="_blank" rel="noopener noreferrer"` : '';
+  return `<a class="el"${href} style="${style}">${esc(label)}</a>`;
 }
 
 function renderDate(el: DateElement, base: string): string {

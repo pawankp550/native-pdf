@@ -5,11 +5,8 @@ import { hexToRgb } from '../utils/color';
 import { canvasToPdfY } from '../utils/coordinates';
 
 export interface TableRenderResult {
-  /** All PDF pages used (first = original, rest = overflow pages) */
   pages: PDFPage[];
-  /** Sum of all data row heights rendered (excluding repeated headers) */
   totalDataHeight: number;
-  /** currentY after the last row on the last page (canvas coord space) */
   finalY: number;
 }
 
@@ -57,14 +54,12 @@ export function renderTable(
         } else if (style.textAlign === 'right') {
           textX = x + col.width - 4 - Math.min(textWidth, innerWidth);
         }
-        // Vertical alignment: pdfY is bottom of cell, pdfY+rowHeight is top
         let textY: number;
         if (style.verticalAlign === 'top') {
           textY = pdfY + rowHeight - style.fontSize - 4;
         } else if (style.verticalAlign === 'middle') {
           textY = pdfY + (rowHeight - style.fontSize) / 2;
         } else {
-          // bottom
           textY = pdfY + 4;
         }
         currentPage.drawText(text, {
@@ -73,7 +68,6 @@ export function renderTable(
           size: style.fontSize,
           font: usedFont,
           color: rgb(tc.r, tc.g, tc.b),
-          maxWidth: innerWidth,
         });
       }
       x += col.width;
@@ -93,7 +87,6 @@ export function renderTable(
   el.data.forEach((row, ri) => {
     const rowHeight = el.rowHeights[(el.showHeader ? ri + 1 : ri)] ?? 20;
 
-    // If row doesn't fit on current page, start an overflow page
     if (currentY + rowHeight > pageHeight) {
       const newPage = doc.addPage([pageWidth, pageHeight]);
       pages.push(newPage);

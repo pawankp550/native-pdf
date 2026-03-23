@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import type { PDFPage, PDFDocument } from 'pdf-lib';
 import type { QrCodeElement } from '../../../store/pdf-editor/types/elements';
+import { canvasToPdfY } from '../utils/coordinates';
 
 export async function renderQrCode(
   page: PDFPage,
@@ -10,7 +11,6 @@ export async function renderQrCode(
 ): Promise<void> {
   if (!el.data) return;
 
-  // Render at 3× for sharper output, then scale down to element size
   const renderSize = Math.min(el.width, el.height) * 3;
 
   const dataUrl = await QRCode.toDataURL(el.data, {
@@ -29,11 +29,10 @@ export async function renderQrCode(
   const img = await pdfDoc.embedPng(bytes);
 
   const size = Math.min(el.width, el.height);
-  // Centre within the element box
   const offsetX = (el.width - size) / 2;
   const offsetY = (el.height - size) / 2;
   const pdfX = el.position.x + offsetX;
-  const pdfY = pageHeight - el.position.y - el.height + offsetY;
+  const pdfY = canvasToPdfY(el.position.y, el.height, pageHeight) + offsetY;
 
   page.drawImage(img, { x: pdfX, y: pdfY, width: size, height: size });
 }

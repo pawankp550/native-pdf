@@ -20,7 +20,6 @@ export function renderDate(
   const text = el.format ? formatDate(date, el.format) : '';
   if (!text) return;
 
-  // Background fill
   if (el.backgroundColor && el.backgroundColor !== 'transparent') {
     const { r, g, b } = hexToRgb(el.backgroundColor);
     const bgY = canvasToPdfY(el.position.y, el.height, pageHeight);
@@ -51,7 +50,6 @@ export function renderDate(
     size: el.fontSize,
     font: usedFont,
     color: rgb(r, g, b),
-    maxWidth: innerW,
     opacity: el.opacity,
   });
 }

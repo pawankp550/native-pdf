@@ -9,7 +9,7 @@ export function renderPageNumber(
   el: PageNumberElement,
   font: PDFFont,
   boldFont: PDFFont,
-  pageIndex: number,   // 1-based
+  pageIndex: number,
   totalPages: number,
 ): void {
   const pageHeight = page.getHeight();
@@ -20,7 +20,6 @@ export function renderPageNumber(
 
   if (!text) return;
 
-  // Background fill
   if (el.backgroundColor && el.backgroundColor !== 'transparent') {
     const { r, g, b } = hexToRgb(el.backgroundColor);
     const bgY = canvasToPdfY(el.position.y, el.height, pageHeight);
@@ -38,7 +37,6 @@ export function renderPageNumber(
     x = el.position.x + el.width - el.padding - Math.min(textWidth, innerW);
   }
 
-  // Vertically centre text within the element
   const textY = canvasToPdfY(
     el.position.y + (el.height - el.fontSize) / 2,
     el.fontSize,
@@ -52,7 +50,6 @@ export function renderPageNumber(
     size: el.fontSize,
     font: usedFont,
     color: rgb(r, g, b),
-    maxWidth: innerW,
     opacity: el.opacity,
   });
 }

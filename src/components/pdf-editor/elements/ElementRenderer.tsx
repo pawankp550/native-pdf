@@ -13,12 +13,13 @@ import { PageNumberElement } from './PageNumberElement';
 import { QrCodeElement } from './QrCodeElement';
 import { DateElement } from './DateElement';
 import { HeadingElement } from './HeadingElement';
+import { LinkElement } from './LinkElement';
 
 interface Props {
   element: CanvasElement;
   isEditing?: boolean;
   onCommitText?: (text: string) => void;
-  onCommitTable?: (data: string[][], columns: TableColumn[]) => void;
+  onCommitTable?: (data: string[][], columns: TableColumn[], width: number) => void;
 }
 
 export const ElementRenderer = React.memo(({ element, isEditing = false, onCommitText, onCommitTable }: Props) => {
@@ -49,6 +50,8 @@ export const ElementRenderer = React.memo(({ element, isEditing = false, onCommi
       return <DateElement element={element} />;
     case 'heading':
       return <HeadingElement element={element} isEditing={isEditing} onCommitText={onCommitText ?? (() => {})} />;
+    case 'link':
+      return <LinkElement element={element} />;
     default:
       return null;
   }

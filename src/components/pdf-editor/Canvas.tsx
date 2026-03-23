@@ -12,7 +12,7 @@ import {
   selectCurrentPage, selectCurrentPageElements,
   selectSelectedElementIds, selectZoom, selectShowGrid, selectBasePdf, selectSortedPages,
 } from '@/store/pdf-editor/selectors';
-import type { CanvasElement, ElementType, PageNumberElement, DateElement, HeadingElement, SignaturePadElement } from '@/store/pdf-editor/types/elements';
+import type { CanvasElement, ElementType, PageNumberElement, DateElement, HeadingElement, SignaturePadElement, LinkElement, ImageElement } from '@/store/pdf-editor/types/elements';
 import { todayIso } from '@/utils/date-format';
 import { ElementRenderer } from './elements/ElementRenderer';
 import { ElementHandles } from './elements/ElementHandles';
@@ -33,7 +33,7 @@ function createDefaultElement(type: ElementType, x: number, y: number, pageId: s
 
   switch (type) {
     case 'text':
-      return { ...base, type: 'text', width: 200, height: 40, content: 'Text', fontSize: 14, fontFamily: 'Helvetica', fontWeight: 'normal', fontStyle: 'normal', fontColor: '#000000', textAlign: 'left', lineHeight: 1.4, underline: false, strikethrough: false, backgroundColor: 'transparent', padding: 4 };
+      return { ...base, type: 'text', width: 200, height: 40, content: 'Text', fontSize: 14, fontFamily: 'Helvetica', fontWeight: '400', fontStyle: 'normal', fontColor: '#000000', textAlign: 'left', lineHeight: 1.4, letterSpacing: 0, textTransform: 'none', underline: false, strikethrough: false, backgroundColor: 'transparent', padding: 4, url: '' };
     case 'line':
       return { ...base, type: 'line', width: 150, height: 4, strokeColor: '#000000', strokeWidth: 2, dashArray: [], lineCap: 'butt' };
     case 'rectangle':
@@ -44,7 +44,7 @@ function createDefaultElement(type: ElementType, x: number, y: number, pageId: s
       return { ...base, type: 'checkbox', width: 20, height: 20, checked: false, checkStyle: 'check', fillColor: '#ffffff', checkColor: '#000000', strokeColor: '#000000', strokeWidth: 1.5, cornerRadius: 2 };
     case 'table':
       return {
-        ...base, type: 'table', width: 300, height: 120,
+        ...base, type: 'table', width: 301, height: 120,
         columns: [{ id: nanoid(), label: 'Column 1', width: 100 }, { id: nanoid(), label: 'Column 2', width: 100 }, { id: nanoid(), label: 'Column 3', width: 100 }],
         rowHeights: [28, 24, 24],
         headerStyle: { bg: '#f3f4f6', textColor: '#111827', fontSize: 12, fontWeight: 'bold', borderColor: '#d1d5db', textAlign: 'left', verticalAlign: 'middle' },
@@ -86,6 +86,13 @@ function createDefaultElement(type: ElementType, x: number, y: number, pageId: s
         dataUrl: '', penColor: '#000000', penWidth: 2,
         backgroundColor: '#ffffff', borderColor: '#d1d5db', borderWidth: 1,
       } satisfies SignaturePadElement;
+    case 'link':
+      return {
+        ...base, type: 'link', width: 160, height: 28,
+        label: 'Link', url: '',
+        fontSize: 13, fontFamily: 'Helvetica',
+        fontColor: '#2563eb', textAlign: 'left', padding: 4,
+      } satisfies LinkElement;
   }
 }
 
@@ -119,6 +126,7 @@ export const Canvas = React.memo(() => {
   const selectedIds = useAppSelector(selectSelectedElementIds);
   const zoom = useAppSelector(selectZoom);
   const showGrid = useAppSelector(selectShowGrid);
+
   const basePdf = useAppSelector(selectBasePdf);
   const sortedPages = useAppSelector(selectSortedPages);
 
@@ -141,21 +149,39 @@ export const Canvas = React.memo(() => {
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (!currentPage) return;
-    const type = e.dataTransfer.getData('text/plain') as ElementType;
-    if (!type) return;
+
+    const raw = e.dataTransfer.getData('text/plain');
+    if (!raw) return;
+
+    let type: ElementType;
+    let presetSrc: string | undefined;
+    try {
+      const parsed = JSON.parse(raw) as { type: ElementType; src?: string };
+      type = parsed.type;
+      presetSrc = parsed.src;
+    } catch {
+      type = raw as ElementType;
+    }
+
     const native = e.nativeEvent as DragEvent;
     const clientX = native.clientX || lastDragOverPos.current?.clientX || 0;
     const clientY = native.clientY || lastDragOverPos.current?.clientY || 0;
+
     const rect = e.currentTarget.getBoundingClientRect();
     const rawX = (clientX - rect.left) / zoom;
     const rawY = (clientY - rect.top) / zoom;
+
     const el = createDefaultElement(type, 0, 0, currentPage.id);
+    if (presetSrc && el.type === 'image') (el as ImageElement).src = presetSrc;
+
     const x = Math.round(Math.max(0, Math.min(currentPage.width - el.width, rawX - el.width / 2)));
     const y = Math.round(Math.max(0, Math.min(currentPage.height - el.height, rawY - el.height / 2)));
     el.position.x = x;
     el.position.y = y;
+
     const maxZ = elements.length > 0 ? Math.max(...elements.map(ev => ev.zIndex)) + 1 : 0;
     el.zIndex = maxZ;
+
     if (type === 'page-number') {
       dispatch(addPageNumberToAllPages(el as PageNumberElement));
       dispatch(setSelectedElements([el.id]));
@@ -169,10 +195,12 @@ export const Canvas = React.memo(() => {
     if (el.locked) return;
     e.stopPropagation();
     if (e.button !== 0) return;
+
     if (editingId) {
       (document.activeElement as HTMLElement | null)?.blur();
       return;
     }
+
     if (e.shiftKey) {
       const newIds = selectedIds.includes(el.id)
         ? selectedIds.filter(id => id !== el.id)
@@ -181,6 +209,7 @@ export const Canvas = React.memo(() => {
     } else if (!selectedIds.includes(el.id)) {
       dispatch(setSelectedElements([el.id]));
     }
+
     const pos = getCanvasPos(e);
     dragState.current = {
       type: 'move',
@@ -238,6 +267,7 @@ export const Canvas = React.memo(() => {
       const y = (e.clientY - rect.top) / zoom;
       const dx = x - ds.startX;
       const dy = y - ds.startY;
+
       if (ds.type === 'move') {
         const newX = Math.round(ds.startElX + dx);
         const newY = Math.round(ds.startElY + dy);
@@ -249,21 +279,28 @@ export const Canvas = React.memo(() => {
         let newY = ds.startElY;
         let newW = ds.startElW;
         let newH = ds.startElH;
+
         if (dir.includes('e')) newW = Math.max(10, ds.startElW + dx);
         if (dir.includes('s')) newH = Math.max(10, ds.startElH + dy);
         if (dir.includes('w')) { newW = Math.max(10, ds.startElW - dx); newX = ds.startElX + dx; }
         if (dir.includes('n')) { newH = Math.max(10, ds.startElH - dy); newY = ds.startElY + dy; }
+
         dispatch(resizeElement({ id: ds.elementId, width: Math.round(newW), height: Math.round(newH), x: Math.round(newX), y: Math.round(newY) }));
-        setDragTooltip({ x: e.clientX + 12, y: e.clientY - 24, label: `${Math.round(newW)} × ${Math.round(newH)}` });
+        setDragTooltip({ x: e.clientX + 12, y: e.clientY - 24, label: `${Math.round(newW)} \u00d7 ${Math.round(newH)}` });
       } else if (ds.type === 'rotate' && ds.elCenterX !== undefined && ds.elCenterY !== undefined) {
         const angle = Math.atan2(y - ds.elCenterY, x - ds.elCenterX) * (180 / Math.PI);
         const delta = angle - (ds.startAngle ?? 0);
         const newRotate = Math.round((ds.startRotate ?? 0) + delta);
         dispatch(rotateElement({ id: ds.elementId, rotate: newRotate }));
-        setDragTooltip({ x: e.clientX + 12, y: e.clientY - 24, label: `${newRotate}°` });
+        setDragTooltip({ x: e.clientX + 12, y: e.clientY - 24, label: `${newRotate}\u00b0` });
       }
     };
-    const onMouseUp = () => { dragState.current = null; setDragTooltip(null); };
+
+    const onMouseUp = () => {
+      dragState.current = null;
+      setDragTooltip(null);
+    };
+
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     return () => {
@@ -281,6 +318,7 @@ export const Canvas = React.memo(() => {
     const pos = getCanvasPos(e);
     if (!e.shiftKey) dispatch(clearSelection());
     setRubberBand({ startX: pos.x, startY: pos.y, currentX: pos.x, currentY: pos.y });
+
     const onMove = (me: MouseEvent) => {
       const p = { x: (me.clientX - (canvasRef.current?.getBoundingClientRect().left ?? 0)) / zoom, y: (me.clientY - (canvasRef.current?.getBoundingClientRect().top ?? 0)) / zoom };
       setRubberBand(rb => rb ? { ...rb, currentX: p.x, currentY: p.y } : null);
@@ -319,6 +357,7 @@ export const Canvas = React.memo(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedIds.length > 0) { e.preventDefault(); dispatch(deleteSelectedElements()); }
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
@@ -337,7 +376,7 @@ export const Canvas = React.memo(() => {
         e.preventDefault();
         const step = e.shiftKey ? 10 : 1;
         for (const id of selectedIds) {
-          const el = elements.find(e => e.id === id);
+          const el = elements.find(ev => ev.id === id);
           if (!el || el.locked) continue;
           const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
           const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
@@ -358,11 +397,29 @@ export const Canvas = React.memo(() => {
 
   return (
     <div className="flex-1 overflow-auto bg-[#f0f0f0] flex items-start justify-center p-8">
-      <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', marginBottom: `${(currentPage.height * zoom) - currentPage.height}px` }}>
+      <div
+        style={{
+          transform: `scale(${zoom})`,
+          transformOrigin: 'top center',
+          marginBottom: `${(currentPage.height * zoom) - currentPage.height}px`,
+        }}
+      >
         <div
           ref={canvasRef}
-          style={{ width: currentPage.width, height: currentPage.height, backgroundColor: currentPage.backgroundColor, position: 'relative', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', userSelect: 'none', ...gridStyle }}
-          onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; lastDragOverPos.current = { clientX: e.clientX, clientY: e.clientY }; }}
+          style={{
+            width: currentPage.width,
+            height: currentPage.height,
+            backgroundColor: basePdf ? 'transparent' : currentPage.backgroundColor,
+            position: 'relative',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+            userSelect: 'none',
+            ...gridStyle,
+          }}
+          onDragOver={e => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            lastDragOverPos.current = { clientX: e.clientX, clientY: e.clientY };
+          }}
           onDrop={handleDrop}
           onMouseDown={handleCanvasMouseDown}
         >
@@ -370,38 +427,111 @@ export const Canvas = React.memo(() => {
             const pageIndex = sortedPages.findIndex(p => p.id === currentPage.id);
             const img = basePdf.pageImages[pageIndex];
             return img ? (
-              <img src={img} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none', userSelect: 'none', zIndex: -1 }} />
+              <img
+                src={img}
+                alt=""
+                draggable={false}
+                style={{
+                  position: 'absolute', inset: 0,
+                  width: '100%', height: '100%',
+                  objectFit: 'fill',
+                  pointerEvents: 'none',
+                  userSelect: 'none',
+                  zIndex: -1,
+                }}
+              />
             ) : null;
           })()}
           {elements.map(el => {
             const isSelected = selectedIds.includes(el.id);
             const isEditing = editingId === el.id;
+
             return (
               <div
                 key={el.id}
-                style={{ position: 'absolute', left: el.position.x, top: el.position.y, width: el.width, height: el.height, transform: `rotate(${el.rotate}deg)`, opacity: el.visible ? el.opacity : 0.3, zIndex: el.zIndex, cursor: el.locked ? 'not-allowed' : 'move', outline: isSelected ? '2px solid #3b82f6' : 'none', outlineOffset: '1px' }}
+                style={{
+                  position: 'absolute',
+                  left: el.position.x,
+                  top: el.position.y,
+                  width: el.width,
+                  height: el.height,
+                  transform: `rotate(${el.rotate}deg)`,
+                  opacity: el.visible ? el.opacity : 0.3,
+                  zIndex: el.zIndex,
+                  cursor: el.locked ? 'not-allowed' : 'move',
+                  outline: isSelected ? '2px solid #3b82f6' : 'none',
+                  outlineOffset: '1px',
+                }}
                 onMouseDown={e => handleElementMouseDown(e, el)}
                 onDoubleClick={e => handleElementDoubleClick(e, el)}
               >
                 <ElementRenderer
                   element={el}
                   isEditing={isEditing}
-                  onCommitText={text => { dispatch(updateElement({ id: el.id, changes: { content: text } as Partial<typeof el> })); setEditingId(null); }}
-                  onCommitTable={(data, columns) => { dispatch(updateElement({ id: el.id, changes: { data, columns } as Partial<typeof el> })); setEditingId(null); }}
+                  onCommitText={text => {
+                    dispatch(updateElement({ id: el.id, changes: { content: text } as Partial<typeof el> }));
+                    setEditingId(null);
+                  }}
+                  onCommitTable={(data, columns, width) => {
+                    dispatch(updateElement({ id: el.id, changes: { data, columns, width } as Partial<typeof el> }));
+                    setEditingId(null);
+                  }}
                 />
-                {el.locked && <div style={{ position: 'absolute', top: -8, right: -8, background: '#6b7280', borderRadius: 3, padding: '1px 3px', zIndex: 10 }}><Lock size={8} color="white" /></div>}
-                {!el.visible && <div style={{ position: 'absolute', top: -8, left: -8, background: '#6b7280', borderRadius: 3, padding: '1px 3px', zIndex: 10 }}><EyeOff size={8} color="white" /></div>}
-                {isSelected && !el.locked && <ElementHandles onMouseDown={(e, dir) => handleResizeMouseDown(e, el, dir)} onRotateMouseDown={e => handleRotateMouseDown(e, el)} />}
+
+                {el.locked && (
+                  <div style={{ position: 'absolute', top: -8, right: -8, background: '#6b7280', borderRadius: 3, padding: '1px 3px', zIndex: 10 }}>
+                    <Lock size={8} color="white" />
+                  </div>
+                )}
+                {!el.visible && (
+                  <div style={{ position: 'absolute', top: -8, left: -8, background: '#6b7280', borderRadius: 3, padding: '1px 3px', zIndex: 10 }}>
+                    <EyeOff size={8} color="white" />
+                  </div>
+                )}
+
+                {isSelected && !el.locked && (
+                  <ElementHandles
+                    onMouseDown={(e, dir) => handleResizeMouseDown(e, el, dir)}
+                    onRotateMouseDown={e => handleRotateMouseDown(e, el)}
+                  />
+                )}
               </div>
             );
           })}
+
           {rubberBand && (
-            <div style={{ position: 'absolute', left: Math.min(rubberBand.startX, rubberBand.currentX), top: Math.min(rubberBand.startY, rubberBand.currentY), width: Math.abs(rubberBand.currentX - rubberBand.startX), height: Math.abs(rubberBand.currentY - rubberBand.startY), border: '1px dashed #3b82f6', background: 'rgba(59,130,246,0.08)', pointerEvents: 'none', zIndex: 9999 }} />
+            <div
+              style={{
+                position: 'absolute',
+                left: Math.min(rubberBand.startX, rubberBand.currentX),
+                top: Math.min(rubberBand.startY, rubberBand.currentY),
+                width: Math.abs(rubberBand.currentX - rubberBand.startX),
+                height: Math.abs(rubberBand.currentY - rubberBand.startY),
+                border: '1px dashed #3b82f6',
+                background: 'rgba(59,130,246,0.08)',
+                pointerEvents: 'none',
+                zIndex: 9999,
+              }}
+            />
           )}
         </div>
       </div>
+
       {dragTooltip && (
-        <div style={{ position: 'fixed', left: dragTooltip.x, top: dragTooltip.y, background: '#1e293b', color: 'white', fontSize: 11, padding: '2px 6px', borderRadius: 4, pointerEvents: 'none', zIndex: 9999 }}>
+        <div
+          style={{
+            position: 'fixed',
+            left: dragTooltip.x,
+            top: dragTooltip.y,
+            background: '#1e293b',
+            color: 'white',
+            fontSize: 11,
+            padding: '2px 6px',
+            borderRadius: 4,
+            pointerEvents: 'none',
+            zIndex: 9999,
+          }}
+        >
           {dragTooltip.label}
         </div>
       )}
