@@ -115,7 +115,7 @@ export const LeftPanel = React.memo(() => {
       <div className="p-2 flex flex-col gap-3">
         {filteredItems.length > 0 && (
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-foreground mb-1.5 px-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-foreground mb-1.5 px-1 flex justify-center">
               Elements
             </p>
             <div className="grid grid-cols-1 gap-1.5">
@@ -129,7 +129,7 @@ export const LeftPanel = React.memo(() => {
         {filteredIcons.length > 0 && (
           <div>
             {filteredItems.length > 0 && <Separator className="mb-2" />}
-            <p className="text-[10px] font-bold uppercase tracking-wider text-foreground mb-1.5 px-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-foreground mb-1.5 px-1 flex justify-center">
               Icons
             </p>
             <IconGrid icons={filteredIcons} />
