@@ -12,7 +12,7 @@ import {
   selectCurrentPage, selectCurrentPageElements,
   selectSelectedElementIds, selectZoom, selectShowGrid, selectBasePdf, selectSortedPages,
 } from '@/store/pdf-editor/selectors';
-import type { CanvasElement, ElementType, PageNumberElement, DateElement, HeadingElement, SignaturePadElement, LinkElement, ImageElement } from '@/store/pdf-editor/types/elements';
+import type { CanvasElement, ElementType, PageNumberElement, DateElement, HeadingElement, SignaturePadElement, LinkElement, ImageElement, BarcodeElement, RadioElement } from '@/store/pdf-editor/types/elements';
 import { todayIso } from '@/utils/date-format';
 import { ElementRenderer } from './elements/ElementRenderer';
 import { ElementHandles } from './elements/ElementHandles';
@@ -37,9 +37,9 @@ function createDefaultElement(type: ElementType, x: number, y: number, pageId: s
     case 'line':
       return { ...base, type: 'line', width: 150, height: 4, strokeColor: '#000000', strokeWidth: 2, dashArray: [], lineCap: 'butt' };
     case 'rectangle':
-      return { ...base, type: 'rectangle', width: 120, height: 80, fillColor: '#e5e7eb', fillOpacity: 1, strokeColor: '#6b7280', strokeWidth: 1, cornerRadius: 0, transparent: false };
+      return { ...base, type: 'rectangle', width: 120, height: 80, fillColor: '#e5e7eb', fillOpacity: 1, strokeColor: '#6b7280', strokeWidth: 1, cornerRadius: 0, transparent: true };
     case 'circle':
-      return { ...base, type: 'circle', width: 80, height: 80, fillColor: '#e5e7eb', fillOpacity: 1, strokeColor: '#6b7280', strokeWidth: 1, transparent: false };
+      return { ...base, type: 'circle', width: 80, height: 80, fillColor: '#e5e7eb', fillOpacity: 1, strokeColor: '#6b7280', strokeWidth: 1, transparent: true };
     case 'checkbox':
       return { ...base, type: 'checkbox', width: 20, height: 20, checked: false, checkStyle: 'check', fillColor: '#ffffff', checkColor: '#000000', strokeColor: '#000000', strokeWidth: 1.5, cornerRadius: 2 };
     case 'table':
@@ -93,6 +93,21 @@ function createDefaultElement(type: ElementType, x: number, y: number, pageId: s
         fontSize: 13, fontFamily: 'Helvetica',
         fontColor: '#2563eb', textAlign: 'left', padding: 4,
       } satisfies LinkElement;
+    case 'barcode':
+      return {
+        ...base, type: 'barcode', width: 200, height: 80,
+        value: '123456789', format: 'CODE128',
+        displayValue: true, lineColor: '#000000',
+        background: '#ffffff', fontSize: 12, margin: 4,
+      } satisfies BarcodeElement;
+    case 'radio':
+      return {
+        ...base, type: 'radio', width: 160, height: 20,
+        checked: false, label: 'Option',
+        labelPosition: 'right', labelFontSize: 13,
+        labelColor: '#111827', fillColor: '#ffffff',
+        strokeColor: '#6b7280', strokeWidth: 1.5, checkColor: '#2563eb',
+      } satisfies RadioElement;
   }
 }
 
@@ -126,7 +141,6 @@ export const Canvas = React.memo(() => {
   const selectedIds = useAppSelector(selectSelectedElementIds);
   const zoom = useAppSelector(selectZoom);
   const showGrid = useAppSelector(selectShowGrid);
-
   const basePdf = useAppSelector(selectBasePdf);
   const sortedPages = useAppSelector(selectSortedPages);
 
@@ -286,13 +300,13 @@ export const Canvas = React.memo(() => {
         if (dir.includes('n')) { newH = Math.max(10, ds.startElH - dy); newY = ds.startElY + dy; }
 
         dispatch(resizeElement({ id: ds.elementId, width: Math.round(newW), height: Math.round(newH), x: Math.round(newX), y: Math.round(newY) }));
-        setDragTooltip({ x: e.clientX + 12, y: e.clientY - 24, label: `${Math.round(newW)} \u00d7 ${Math.round(newH)}` });
+        setDragTooltip({ x: e.clientX + 12, y: e.clientY - 24, label: `${Math.round(newW)} × ${Math.round(newH)}` });
       } else if (ds.type === 'rotate' && ds.elCenterX !== undefined && ds.elCenterY !== undefined) {
         const angle = Math.atan2(y - ds.elCenterY, x - ds.elCenterX) * (180 / Math.PI);
         const delta = angle - (ds.startAngle ?? 0);
         const newRotate = Math.round((ds.startRotate ?? 0) + delta);
         dispatch(rotateElement({ id: ds.elementId, rotate: newRotate }));
-        setDragTooltip({ x: e.clientX + 12, y: e.clientY - 24, label: `${newRotate}\u00b0` });
+        setDragTooltip({ x: e.clientX + 12, y: e.clientY - 24, label: `${newRotate}°` });
       }
     };
 
@@ -313,6 +327,9 @@ export const Canvas = React.memo(() => {
     if (e.button !== 0) return;
     if (editingId) {
       (document.activeElement as HTMLElement | null)?.blur();
+      if (elements.find(el => el.id === editingId)?.type === 'signature-pad') {
+        setEditingId(null);
+      }
       return;
     }
     const pos = getCanvasPos(e);
@@ -376,7 +393,7 @@ export const Canvas = React.memo(() => {
         e.preventDefault();
         const step = e.shiftKey ? 10 : 1;
         for (const id of selectedIds) {
-          const el = elements.find(ev => ev.id === id);
+          const el = elements.find(e => e.id === id);
           if (!el || el.locked) continue;
           const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
           const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;

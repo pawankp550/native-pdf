@@ -289,7 +289,7 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
             title="Load a base PDF to use as background"
           >
             <FileText size={13} className="mr-1" />
-            {loadingBasePdf ? 'Loading…' : 'Base PDF'}
+            {loadingBasePdf ? 'Loading…' : 'Base PDF / Extract Text'}
           </Button>
         )}
         <input ref={basePdfRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleBasePdfChange} />

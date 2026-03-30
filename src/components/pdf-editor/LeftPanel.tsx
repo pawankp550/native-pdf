@@ -1,15 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import * as LucideIcons from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Type, Minus, Square, Circle, CheckSquare, PenLine, Table2, ImageIcon, Hash, QrCode, CalendarDays, Heading, Link } from 'lucide-react';
+import { Type, Minus, Square, Circle, CheckSquare, PenLine, Table2, ImageIcon, Hash, QrCode, CalendarDays, Heading, Link, Barcode, CircleDot } from 'lucide-react';
 import { Grid } from 'react-window';
 import type { ElementType } from '@/store/pdf-editor/types/elements';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
-
-// ---------------------------------------------------------------------------
-// Element palette
-// ---------------------------------------------------------------------------
 
 interface PaletteItem {
   type: ElementType;
@@ -33,6 +29,7 @@ const SECTIONS: { title: string; items: PaletteItem[] }[] = [
     title: 'Form Elements',
     items: [
       { type: 'checkbox',      label: 'Checkbox',  Icon: CheckSquare },
+      { type: 'radio',         label: 'Radio',     Icon: CircleDot },
       { type: 'signature',     label: 'Signature', Icon: PenLine },
       { type: 'signature-pad', label: 'Sign Pad',  Icon: PenLine },
       { type: 'date',          label: 'Date',      Icon: CalendarDays },
@@ -45,13 +42,10 @@ const SECTIONS: { title: string; items: PaletteItem[] }[] = [
       { type: 'image',       label: 'Image',    Icon: ImageIcon },
       { type: 'page-number', label: 'Page No.', Icon: Hash },
       { type: 'qr-code',     label: 'QR Code',  Icon: QrCode },
+      { type: 'barcode',     label: 'Barcode',  Icon: Barcode },
     ],
   },
 ];
-
-// ---------------------------------------------------------------------------
-// Lucide icon list (all primary icons, sorted)
-// ---------------------------------------------------------------------------
 
 interface IconEntry {
   name: string;
@@ -65,7 +59,6 @@ function toLabel(name: string): string {
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
 }
 
-// Build once at module load — filter out alias exports (ending in "Icon")
 const ALL_ICONS: IconEntry[] = (
   Object.entries(LucideIcons) as [string, unknown][]
 )
@@ -78,18 +71,11 @@ const ALL_ICONS: IconEntry[] = (
   .map(([name, val]) => ({ name, label: toLabel(name), Icon: val as LucideIcon }))
   .sort((a, b) => a.name.localeCompare(b.name));
 
-// ---------------------------------------------------------------------------
-// Grid constants (panel fixed at 220px, p-2 = 8px each side → 204px inner)
-// ---------------------------------------------------------------------------
-const COLS      = 3;
-const COL_W     = 68;   // 204 / 3
-const ROW_H     = 44;   // icon (14) + label + padding
-const GRID_W    = COLS * COL_W;  // 204
-const GRID_H    = 280;  // visible rows ~5
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+const COLS   = 3;
+const COL_W  = 68;
+const ROW_H  = 44;
+const GRID_W = COLS * COL_W;
+const GRID_H = 280;
 
 export const LeftPanel = React.memo(() => {
   const [search, setSearch] = useState('');
@@ -97,7 +83,6 @@ export const LeftPanel = React.memo(() => {
 
   const allItems = SECTIONS.flatMap(s => s.items);
   const filteredItems = allItems.filter(item => item.label.toLowerCase().includes(q));
-
   const filteredIcons = q
     ? ALL_ICONS.filter(ic => ic.label.toLowerCase().includes(q))
     : ALL_ICONS;
@@ -115,7 +100,7 @@ export const LeftPanel = React.memo(() => {
       <div className="p-2 flex flex-col gap-3">
         {filteredItems.length > 0 && (
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-foreground mb-1.5 px-1 flex justify-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-foreground mb-1.5 px-1">
               Elements
             </p>
             <div className="grid grid-cols-1 gap-1.5">
@@ -125,11 +110,10 @@ export const LeftPanel = React.memo(() => {
             </div>
           </div>
         )}
-
         {filteredIcons.length > 0 && (
           <div>
             {filteredItems.length > 0 && <Separator className="mb-2" />}
-            <p className="text-[10px] font-bold uppercase tracking-wider text-foreground mb-1.5 px-1 flex justify-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-foreground mb-1.5 px-1">
               Icons
             </p>
             <IconGrid icons={filteredIcons} />
@@ -140,10 +124,6 @@ export const LeftPanel = React.memo(() => {
   );
 });
 LeftPanel.displayName = 'LeftPanel';
-
-// ---------------------------------------------------------------------------
-// Palette tile
-// ---------------------------------------------------------------------------
 
 const DraggableTile = React.memo(({ item }: { item: PaletteItem }) => (
   <div
@@ -160,10 +140,6 @@ const DraggableTile = React.memo(({ item }: { item: PaletteItem }) => (
   </div>
 ));
 DraggableTile.displayName = 'DraggableTile';
-
-// ---------------------------------------------------------------------------
-// Virtualized icon grid
-// ---------------------------------------------------------------------------
 
 type IconCellProps = { icons: IconEntry[] };
 
@@ -188,7 +164,6 @@ const GridCell = ({ columnIndex, rowIndex, style, icons }: GridCellComponentProp
 const IconGrid = React.memo(({ icons }: { icons: IconEntry[] }) => {
   const rowCount = Math.ceil(icons.length / COLS);
   const height = Math.min(GRID_H, rowCount * ROW_H);
-
   return (
     <Grid<IconCellProps>
       cellComponent={GridCell}

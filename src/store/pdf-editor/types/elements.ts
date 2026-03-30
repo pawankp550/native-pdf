@@ -15,7 +15,9 @@ export type ElementType =
   | 'qr-code'
   | 'date'
   | 'heading'
-  | 'link';
+  | 'link'
+  | 'barcode'
+  | 'radio';
 
 export interface BaseElement {
   id: string;
@@ -166,10 +168,8 @@ export interface QrCodeElement extends BaseElement {
   margin: number;                      // quiet-zone cells
 }
 
-
 export interface DateElement extends BaseElement {
   type: 'date';
-  /** 'today' uses the date at PDF generation / canvas render time; 'fixed' uses fixedDate */
   dateSource: 'today' | 'fixed';
   fixedDate: string;        // ISO date string "YYYY-MM-DD", used when dateSource === 'fixed'
   format: string;           // format string with tokens: YYYY YY MMMM MMM MM M dddd ddd DD D
@@ -186,25 +186,49 @@ export interface HeadingElement extends BaseElement {
   type: 'heading';
   level: 1 | 2 | 3 | 4 | 5 | 6;
   content: string;
-  fontSize: number;           // defaults per level but user-adjustable
+  fontSize: number;
   fontFamily: FontFamily;
   fontColor: string;
   textAlign: 'left' | 'center' | 'right';
   verticalAlign: 'top' | 'middle' | 'bottom';
-  backgroundColor: string;   // 'transparent' = no fill
+  backgroundColor: string;
   padding: number;
   underline: boolean;
 }
 
 export interface LinkElement extends BaseElement {
   type: 'link';
-  label: string;           // visible link text
-  url: string;             // destination URL
+  label: string;
+  url: string;
   fontSize: number;
   fontFamily: FontFamily;
-  fontColor: string;       // defaults to #2563eb
+  fontColor: string;
   textAlign: 'left' | 'center' | 'right';
   padding: number;
+}
+
+export interface RadioElement extends BaseElement {
+  type: 'radio';
+  checked: boolean;
+  label: string;
+  labelPosition: 'right' | 'left';
+  labelFontSize: number;
+  labelColor: string;
+  fillColor: string;
+  strokeColor: string;
+  strokeWidth: number;
+  checkColor: string;
+}
+
+export interface BarcodeElement extends BaseElement {
+  type: 'barcode';
+  value: string;
+  format: 'CODE128' | 'CODE39' | 'EAN13' | 'EAN8' | 'UPC';
+  displayValue: boolean;
+  lineColor: string;
+  background: string;
+  fontSize: number;
+  margin: number;
 }
 
 export type CanvasElement =
@@ -221,4 +245,6 @@ export type CanvasElement =
   | QrCodeElement
   | DateElement
   | HeadingElement
-  | LinkElement;
+  | LinkElement
+  | BarcodeElement
+  | RadioElement;

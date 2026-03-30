@@ -18,6 +18,8 @@ import { QrCodeProperties } from '@/components/properties/QrCodeProperties';
 import { DateProperties } from '@/components/properties/DateProperties';
 import { HeadingProperties } from '@/components/properties/HeadingProperties';
 import { LinkProperties } from '@/components/properties/LinkProperties';
+import { BarcodeProperties } from '@/components/properties/BarcodeProperties';
+import { RadioProperties } from '@/components/properties/RadioProperties';
 import { ColorPicker } from '@/components/properties/ColorPicker';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
@@ -59,6 +61,8 @@ function StylePanel({ element }: { element: CanvasElement }) {
     case 'date': return <DateProperties element={element} />;
     case 'heading': return <HeadingProperties element={element} />;
     case 'link': return <LinkProperties element={element} />;
+    case 'barcode': return <BarcodeProperties element={element} />;
+    case 'radio':   return <RadioProperties element={element} />;
     default: return null;
   }
 }

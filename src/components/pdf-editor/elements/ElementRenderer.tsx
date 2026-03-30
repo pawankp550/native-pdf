@@ -14,6 +14,8 @@ import { QrCodeElement } from './QrCodeElement';
 import { DateElement } from './DateElement';
 import { HeadingElement } from './HeadingElement';
 import { LinkElement } from './LinkElement';
+import { BarcodeElement } from './BarcodeElement';
+import { RadioElement } from './RadioElement';
 
 interface Props {
   element: CanvasElement;
@@ -52,6 +54,10 @@ export const ElementRenderer = React.memo(({ element, isEditing = false, onCommi
       return <HeadingElement element={element} isEditing={isEditing} onCommitText={onCommitText ?? (() => {})} />;
     case 'link':
       return <LinkElement element={element} />;
+    case 'barcode':
+      return <BarcodeElement element={element} />;
+    case 'radio':
+      return <RadioElement element={element} />;
     default:
       return null;
   }

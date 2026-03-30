@@ -28,26 +28,34 @@ function wrapLine(text: string, font: PDFFont, fontSize: number, maxWidth: numbe
     return out;
   };
 
-  const words = text.split(' ');
+  const tokens = text.split(/( +)/);  // e.g. "  hi world" → ['', '  ', 'hi', ' ', 'world']
   const wrapped: string[] = [];
   let current = '';
 
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
+  for (let ti = 0; ti < tokens.length; ti++) {
+    const token = tokens[ti];
+    if (ti % 2 === 1) {
+      current += token;
+      continue;
+    }
+    if (token === '') continue;
+    const candidate = current + token;
     if (measure(candidate) <= maxWidth) {
       current = candidate;
     } else {
-      if (measure(word) <= maxWidth) {
-        if (current) wrapped.push(current);
-        current = word;
+      const flushed = current.trimEnd();
+      if (measure(token) <= maxWidth) {
+        if (flushed) wrapped.push(flushed);
+        current = token;
       } else {
-        const broken = breakToken(word, current ? `${current} ` : '');
+        const broken = breakToken(token, current);
         wrapped.push(...broken.slice(0, -1));
         current = broken[broken.length - 1] ?? '';
       }
     }
   }
-  if (current) wrapped.push(current);
+  const flushed = current.trimEnd();
+  if (flushed) wrapped.push(flushed);
   return wrapped.length > 0 ? wrapped : [text];
 }
 
@@ -105,7 +113,7 @@ export async function renderText(page: PDFPage, el: TextElement, font: PDFFont, 
       const textWidth = usedFont.widthOfTextAtSize(line, el.fontSize);
       x = el.position.x + el.width - el.padding - textWidth;
     }
-    page.drawText(line, { x, y: textY, size: el.fontSize, font: usedFont, color, opacity: el.opacity, charSpace: charSpace || undefined });
+    page.drawText(line, { x, y: textY, size: el.fontSize, font: usedFont, color, opacity: el.opacity });
 
     const spacingExtra = charSpace * Math.max(0, line.length - 1);
 
