@@ -105,7 +105,7 @@ export const RightPanel = React.memo(() => {
             <NumberInput label="Width (px)" value={currentPage.width} min={100} onChange={v => dispatch(updatePage({ id: currentPage.id, changes: { width: v } }))} />
             <NumberInput label="Height (px)" value={currentPage.height} min={100} onChange={v => dispatch(updatePage({ id: currentPage.id, changes: { height: v } }))} />
           </div>
-          <ColorPicker label="Background Color" value={currentPage.backgroundColor} onChange={v => dispatch(updatePage({ id: currentPage.id, changes: { backgroundColor: v } }))} />
+          <ColorPicker label="Background Color" value={currentPage.backgroundColor as string} onChange={v => dispatch(updatePage({ id: currentPage.id, changes: { backgroundColor: v } }))} />
         </div>
       </aside>
     );

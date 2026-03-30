@@ -46,7 +46,7 @@ function wrapLine(text: string, font: PDFFont, fontSize: number, maxWidth: numbe
   return wrapped.length > 0 ? wrapped : [text];
 }
 
-export function renderHeading(page: PDFPage, el: HeadingElement, font: PDFFont, boldFont: PDFFont): void {
+export function renderHeading(page: PDFPage, el: HeadingElement, _font: PDFFont, boldFont: PDFFont): void {
   const pageHeight = page.getHeight();
   const { r, g, b } = hexToRgb(el.fontColor);
   const color = rgb(r, g, b);
