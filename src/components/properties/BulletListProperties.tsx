@@ -11,7 +11,6 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@
 import { ColorPicker } from './ColorPicker';
 import { NumberInput } from './NumberInput';
 import { Plus, Trash2, GripVertical } from 'lucide-react';
-import { nanoid } from '@reduxjs/toolkit';
 
 interface Props { element: BulletListElement }
 

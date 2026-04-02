@@ -125,7 +125,7 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
     try {
       const sorted = [...selected].sort((a, b) => a - b);
       const bytes = await extractPages(file, sorted);
-      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
