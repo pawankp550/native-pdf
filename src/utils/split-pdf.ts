@@ -82,7 +82,7 @@ export async function splitPdf(
 }
 
 function downloadBytes(bytes: Uint8Array, filename: string) {
-  const blob = new Blob([bytes], { type: filename.endsWith('.zip') ? 'application/zip' : 'application/pdf' });
+  const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: filename.endsWith('.zip') ? 'application/zip' : 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
