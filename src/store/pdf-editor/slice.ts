@@ -1,7 +1,7 @@
 import { createSlice, nanoid } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { initialState } from './initial-state';
-import type { PdfEditorState, Page, PdfEditorSnapshot, BasePdfState } from './types/state';
+import type { PdfEditorState, Page, PdfEditorSnapshot, BasePdfState, WatermarkSettings, HeaderFooterSettings } from './types/state';
 import type { CanvasElement, PageNumberElement } from './types/elements';
 
 const MAX_HISTORY = 50;
@@ -25,11 +25,14 @@ const slice = createSlice({
   name: 'pdfEditor',
   initialState,
   reducers: {
+    // Elements
     addElement(state, action: PayloadAction<CanvasElement>) {
       pushHistory(state);
       state.elements[action.payload.id] = action.payload;
       state.isDirty = true;
     },
+    // Adds a page-number element to ALL existing pages. The supplied element is used as the
+    // template; copies with fresh IDs are created for every page.
     addPageNumberToAllPages(state, action: PayloadAction<PageNumberElement>) {
       pushHistory(state);
       const template = action.payload;
@@ -139,12 +142,14 @@ const slice = createSlice({
         state.isDirty = true;
       }
     },
+    // Selection
     setSelectedElements(state, action: PayloadAction<string[]>) {
       state.selectedElementIds = action.payload;
     },
     clearSelection(state) {
       state.selectedElementIds = [];
     },
+    // Pages
     addPage(state, action: PayloadAction<Omit<Page, 'id' | 'order'>>) {
       pushHistory(state);
       const newPage: Page = {
@@ -152,6 +157,7 @@ const slice = createSlice({
         id: nanoid(),
         order: state.pages.length,
       };
+      // Auto-copy page-number elements from the first page onto the new page
       const firstPage = [...state.pages].sort((a, b) => a.order - b.order)[0];
       if (firstPage) {
         const pageNums = Object.values(state.elements).filter(
@@ -170,11 +176,13 @@ const slice = createSlice({
       if (state.pages.length <= 1) return;
       pushHistory(state);
       state.pages = state.pages.filter(p => p.id !== action.payload);
+      // Remove elements on this page
       for (const id of Object.keys(state.elements)) {
         if (state.elements[id].pageId === action.payload) {
           delete state.elements[id];
         }
       }
+      // Reorder
       state.pages.forEach((p, i) => { p.order = i; });
       if (state.currentPageId === action.payload) {
         state.currentPageId = state.pages[0].id;
@@ -188,6 +196,7 @@ const slice = createSlice({
       const newPageId = nanoid();
       const newPage: Page = { ...page, id: newPageId, name: page.name + ' Copy', order: state.pages.length };
       state.pages.push(newPage);
+      // Duplicate elements
       const pageElements = Object.values(state.elements).filter(e => e.pageId === action.payload);
       for (const el of pageElements) {
         const newEl = { ...JSON.parse(JSON.stringify(el)), id: nanoid(), pageId: newPageId };
@@ -217,6 +226,7 @@ const slice = createSlice({
       state.currentPageId = action.payload;
       state.selectedElementIds = [];
     },
+    // UI
     setZoom(state, action: PayloadAction<number>) {
       state.zoom = Math.min(2, Math.max(0.25, action.payload));
     },
@@ -227,6 +237,7 @@ const slice = createSlice({
     setShowGrid(state, action: PayloadAction<boolean>) {
       state.showGrid = action.payload;
     },
+    // Undo/Redo
     undo(state) {
       const prev = state.history.past.pop();
       if (!prev) return;
@@ -243,6 +254,7 @@ const slice = createSlice({
       state.elements = next.elements;
       state.selectedElementIds = [];
     },
+    // Template
     loadTemplateState(state, action: PayloadAction<{ pages: Page[]; elements: Record<string, CanvasElement>; templateName: string }>) {
       state.pages = action.payload.pages;
       state.elements = action.payload.elements;
@@ -255,10 +267,12 @@ const slice = createSlice({
     markSaved(state) {
       state.isDirty = false;
     },
+    // Base PDF
     setBasePdf(state, action: PayloadAction<BasePdfState & { syncPages: boolean }>) {
       const { syncPages, ...basePdf } = action.payload;
       state.basePdf = basePdf;
       if (syncPages) {
+        // Replace pages to match the base PDF's dimensions and page count
         const newPages: Page[] = basePdf.pageDimensions.map((dim, i) => ({
           id: nanoid(),
           name: `Page ${i + 1}`,
@@ -278,6 +292,16 @@ const slice = createSlice({
     clearBasePdf(state) {
       state.basePdf = null;
     },
+    setWatermark(state, action: PayloadAction<WatermarkSettings | null>) {
+      state.watermark = action.payload;
+    },
+    setHeader(state, action: PayloadAction<HeaderFooterSettings | null>) {
+      state.header = action.payload;
+    },
+    setFooter(state, action: PayloadAction<HeaderFooterSettings | null>) {
+      state.footer = action.payload;
+    },
+    // Z-index
     reorderElements(state, action: PayloadAction<{ id: string; direction: 'forward' | 'backward' | 'front' | 'back' }>) {
       const el = state.elements[action.payload.id];
       if (!el) return;
@@ -344,6 +368,8 @@ export const {
   addElementsBatch,
   reorderElements, alignElements,
   setBasePdf, clearBasePdf,
+  setWatermark,
+  setHeader, setFooter,
 } = slice.actions;
 
 export default slice.reducer;

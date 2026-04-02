@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { FilePlus2, CheckSquare, Square, Scissors } from 'lucide-react';
+import { FilePlus2, CheckSquare, Square, Scissors, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { renderPdfToImages } from '@/services/pdf-renderer';
 import { extractPages } from '@/utils/extract-pages';
 import { toast } from 'sonner';
@@ -16,12 +17,33 @@ interface PageThumb {
   dataUrl: string;
 }
 
+/** Parse a range string like "1-3, 5, 8-10" → Set of page numbers */
+function parseRangeInput(input: string, maxPage: number): Set<number> {
+  const result = new Set<number>();
+  for (const part of input.split(',')) {
+    const trimmed = part.trim();
+    const rangeMatch = trimmed.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      const from = Math.max(1, parseInt(rangeMatch[1]));
+      const to = Math.min(maxPage, parseInt(rangeMatch[2]));
+      for (let i = from; i <= to; i++) result.add(i);
+    } else if (/^\d+$/.test(trimmed)) {
+      const n = parseInt(trimmed);
+      if (n >= 1 && n <= maxPage) result.add(n);
+    }
+  }
+  return result;
+}
+
 export const ExtractPagesDialog = ({ open, onClose }: Props) => {
   const [file, setFile] = useState<File | null>(null);
   const [thumbs, setThumbs] = useState<PageThumb[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loadingThumbs, setLoadingThumbs] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [rangeInput, setRangeInput] = useState('');
+  const lastClickedPage = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFile = useCallback(async (f: File) => {
@@ -32,6 +54,7 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
     setLoadingThumbs(true);
     setThumbs([]);
     setSelected(new Set());
+    setRangeInput('');
     setFile(f);
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -52,6 +75,7 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    setIsDragActive(false);
     const f = e.dataTransfer.files[0];
     if (f) loadFile(f);
   }, [loadFile]);
@@ -62,16 +86,38 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
     e.target.value = '';
   }, [loadFile]);
 
-  const togglePage = (n: number) => {
+  /** Click: normal toggle. Shift+click: range select from last clicked. */
+  const togglePage = (n: number, shiftKey: boolean) => {
     setSelected(prev => {
       const next = new Set(prev);
-      next.has(n) ? next.delete(n) : next.add(n);
+      if (shiftKey && lastClickedPage.current !== null) {
+        const from = Math.min(lastClickedPage.current, n);
+        const to = Math.max(lastClickedPage.current, n);
+        const adding = !prev.has(n);
+        for (let i = from; i <= to; i++) {
+          adding ? next.add(i) : next.delete(i);
+        }
+      } else {
+        next.has(n) ? next.delete(n) : next.add(n);
+      }
       return next;
     });
+    lastClickedPage.current = n;
   };
 
-  const selectAll = () => setSelected(new Set(thumbs.map(t => t.pageNumber)));
-  const deselectAll = () => setSelected(new Set());
+  const selectAll = () => { setSelected(new Set(thumbs.map(t => t.pageNumber))); lastClickedPage.current = null; };
+  const deselectAll = () => { setSelected(new Set()); lastClickedPage.current = null; };
+  const invertSelection = () => {
+    setSelected(new Set(thumbs.map(t => t.pageNumber).filter(n => !selected.has(n))));
+    lastClickedPage.current = null;
+  };
+
+  const applyRangeInput = () => {
+    const parsed = parseRangeInput(rangeInput, thumbs.length);
+    if (parsed.size === 0) { toast.error('No valid pages in range'); return; }
+    setSelected(parsed);
+    lastClickedPage.current = null;
+  };
 
   const handleExtract = async () => {
     if (!file || selected.size === 0) return;
@@ -101,6 +147,7 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
       setFile(null);
       setThumbs([]);
       setSelected(new Set());
+      setRangeInput('');
     }
   };
 
@@ -113,13 +160,16 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
           <DialogTitle>Extract Pages</DialogTitle>
         </DialogHeader>
 
-        {/* Drop zone — shown when no file loaded */}
+        {/* Drop zone */}
         {!file && !loadingThumbs && (
           <div
-            onDragOver={e => e.preventDefault()}
+            onDragOver={e => { e.preventDefault(); setIsDragActive(true); }}
+            onDragLeave={() => setIsDragActive(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed rounded-lg p-10 text-center cursor-pointer hover:border-primary hover:bg-accent/40 transition-colors"
+            className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors ${
+              isDragActive ? 'border-primary bg-accent/60' : 'hover:border-primary hover:bg-accent/40'
+            }`}
           >
             <FilePlus2 size={28} className="mx-auto mb-2 text-muted-foreground" />
             <p className="text-sm font-medium">Drop a PDF here or click to browse</p>
@@ -136,22 +186,41 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
 
         <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleFileInput} />
 
-        {/* Toolbar: file name + select actions */}
+        {/* Toolbar */}
         {thumbs.length > 0 && (
-          <div className="flex items-center justify-between gap-2 shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
               <span className="text-xs font-medium truncate text-muted-foreground">{file?.name}</span>
-              <span className="text-xs text-muted-foreground shrink-0">· {thumbs.length} pages</span>
+              <span className="text-xs text-muted-foreground shrink-0">· {thumbs.length}p</span>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={allSelected ? deselectAll : selectAll}>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={allSelected ? deselectAll : selectAll}>
                 {allSelected ? <Square size={12} className="mr-1" /> : <CheckSquare size={12} className="mr-1" />}
-                {allSelected ? 'Deselect all' : 'Select all'}
+                {allSelected ? 'None' : 'All'}
               </Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setFile(null); setThumbs([]); setSelected(new Set()); }}>
-                Change file
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={invertSelection} title="Invert selection">
+                <RotateCcw size={12} className="mr-1" /> Invert
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => { setFile(null); setThumbs([]); setSelected(new Set()); setRangeInput(''); }}>
+                Change
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Range quick-select input */}
+        {thumbs.length > 0 && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Input
+              value={rangeInput}
+              onChange={e => setRangeInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && applyRangeInput()}
+              placeholder={`e.g. 1-3, 5, 8-10 (max ${thumbs.length})`}
+              className="h-7 text-xs flex-1"
+            />
+            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={applyRangeInput}>
+              Select
+            </Button>
           </div>
         )}
 
@@ -164,7 +233,7 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
                 return (
                   <div
                     key={pageNumber}
-                    onClick={() => togglePage(pageNumber)}
+                    onClick={e => togglePage(pageNumber, e.shiftKey)}
                     className={`relative cursor-pointer rounded-md overflow-hidden border-2 transition-all select-none ${
                       isSelected
                         ? 'border-primary ring-2 ring-primary/30'
@@ -177,7 +246,6 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
                       className="w-full h-auto block"
                       draggable={false}
                     />
-                    {/* Overlay checkmark when selected */}
                     {isSelected && (
                       <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -185,7 +253,6 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
                         </svg>
                       </div>
                     )}
-                    {/* Page number badge */}
                     <div className={`absolute bottom-0 inset-x-0 text-center py-0.5 text-[10px] font-medium ${isSelected ? 'bg-primary text-white' : 'bg-black/40 text-white'}`}>
                       {pageNumber}
                     </div>
@@ -202,7 +269,7 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
             <span className="text-xs text-muted-foreground">
               {selected.size > 0
                 ? `${selected.size} of ${thumbs.length} page${selected.size !== 1 ? 's' : ''} selected`
-                : 'Click pages to select'}
+                : 'Click pages to select · Shift+click for range'}
             </span>
             <Button
               size="sm"

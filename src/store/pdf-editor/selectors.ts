@@ -14,6 +14,9 @@ export const selectShowGrid = (state: RootState) => state.pdfEditor.showGrid;
 export const selectCanUndo = (state: RootState) => state.pdfEditor.history.past.length > 0;
 export const selectCanRedo = (state: RootState) => state.pdfEditor.history.future.length > 0;
 export const selectBasePdf = (state: RootState) => state.pdfEditor.basePdf;
+export const selectWatermark = (state: RootState) => state.pdfEditor.watermark;
+export const selectHeader = (state: RootState) => state.pdfEditor.header;
+export const selectFooter = (state: RootState) => state.pdfEditor.footer;
 
 export const selectCurrentPage = createSelector(
   selectPages,

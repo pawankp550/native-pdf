@@ -5,27 +5,33 @@ import { Canvas } from './Canvas';
 import { RightPanel } from './RightPanel';
 import { PageStrip } from './PageStrip';
 import { Toaster } from 'sonner';
+import type { EditorAction } from '@/App';
 
-export const PdfEditor = () => {
-    const [darkMode, setDarkMode] = useState(false);
+interface Props {
+  initialAction?: EditorAction;
+}
 
-    React.useEffect(() => {
-        document.documentElement.classList.toggle('dark', darkMode);
-    }, [darkMode]);
+export const PdfEditor = ({ initialAction }: Props) => {
+  const [darkMode, setDarkMode] = useState(false);
 
-    return (
-        <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
-            <Toolbar
-                darkMode={darkMode}
-                onToggleDark={() => setDarkMode(d => !d)}
-            />
-            <div className="flex flex-1 overflow-hidden">
-                <LeftPanel />
-                <Canvas />
-                <RightPanel />
-            </div>
-            <PageStrip />
-            <Toaster position="bottom-right" />
-        </div>
-    );
+  React.useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
+
+  return (
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
+      <Toolbar
+        darkMode={darkMode}
+        onToggleDark={() => setDarkMode(d => !d)}
+        initialAction={initialAction}
+      />
+      <div className="flex flex-1 overflow-hidden">
+        <LeftPanel />
+        <Canvas />
+        <RightPanel />
+      </div>
+      <PageStrip />
+      <Toaster position="bottom-right" />
+    </div>
+  );
 };

@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
-import type { Page, BasePdfState } from '../../store/pdf-editor/types/state';
+import type { Page, BasePdfState, WatermarkSettings, HeaderFooterSettings } from '../../store/pdf-editor/types/state';
 import type {
   CanvasElement,
   TextElement,
@@ -27,10 +27,33 @@ import { formatDate, parseIsoDate } from '../date-format';
 // Public API
 // ---------------------------------------------------------------------------
 
+function hfHtml(settings: HeaderFooterSettings, pageNum: number, totalPages: number, isHeader: boolean): string {
+  const today = new Date().toLocaleDateString();
+  const resolve = (t: string) => t
+    .replace(/\{page\}/g, String(pageNum))
+    .replace(/\{total\}/g, String(totalPages))
+    .replace(/\{date\}/g, today);
+  const bg = settings.backgroundColor !== 'transparent' ? `background:${settings.backgroundColor};` : '';
+  const border = settings.showBorder
+    ? `border-${isHeader ? 'bottom' : 'top'}:0.5px solid ${settings.borderColor};`
+    : '';
+  const zoneStyle = (align: string) =>
+    `flex:1;text-align:${align};font-size:${settings.fontSize}px;color:${settings.color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 ${align === 'center' ? '4' : '8'}px;`;
+  const pos = isHeader ? 'top:0' : 'bottom:0';
+  return `<div style="position:absolute;${pos};left:0;right:0;height:${settings.height}px;${bg}${border}display:flex;align-items:center;z-index:0;">` +
+    `<span style="${zoneStyle('left')}">${esc(resolve(settings.zones.left))}</span>` +
+    `<span style="${zoneStyle('center')}">${esc(resolve(settings.zones.center))}</span>` +
+    `<span style="${zoneStyle('right')}">${esc(resolve(settings.zones.right))}</span>` +
+    `</div>`;
+}
+
 export async function generateHtml(
   pages: Page[],
   elements: Record<string, CanvasElement>,
   basePdf?: BasePdfState | null,
+  watermark?: WatermarkSettings | null,
+  header?: HeaderFooterSettings | null,
+  footer?: HeaderFooterSettings | null,
 ): Promise<string> {
   const sorted = [...pages].sort((a, b) => a.order - b.order);
   const totalPages = sorted.length;
@@ -98,8 +121,18 @@ export async function generateHtml(
       .map(el => renderElement(el, pageIdx + 1, totalPages, qrDataUrls, barcodeDataUrls))
       .join('\n    ');
 
+    const watermarkHtml = (watermark?.enabled && watermark.text)
+      ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;z-index:0;"><span style="font-size:${watermark.fontSize}px;color:${watermark.color};opacity:${watermark.opacity};transform:rotate(${watermark.rotation}deg);white-space:nowrap;font-weight:700;letter-spacing:0.05em;user-select:none;">${esc(watermark.text)}</span></div>`
+      : '';
+
+    const headerHtml = header?.enabled ? hfHtml(header, pageIdx + 1, totalPages, true) : '';
+    const footerHtml = footer?.enabled ? hfHtml(footer, pageIdx + 1, totalPages, false) : '';
+
     return `
   <div class="page" style="width:${page.width}px;height:${page.height}px;background-color:${page.backgroundColor};${bgImage}">
+    ${watermarkHtml}
+    ${headerHtml}
+    ${footerHtml}
     ${elementsHtml}
   </div>`;
   }).join('\n');

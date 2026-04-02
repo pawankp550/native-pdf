@@ -5,6 +5,9 @@ const firstPageId = nanoid();
 
 export const initialState: PdfEditorState = {
   basePdf: null,
+  watermark: null,
+  header: null,
+  footer: null,
   pages: [
     {
       id: firstPageId,

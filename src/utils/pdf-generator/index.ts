@@ -1,6 +1,6 @@
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, degrees } from 'pdf-lib';
 import type { PDFPage, PDFFont } from 'pdf-lib';
-import type { Page, BasePdfState } from '../../store/pdf-editor/types/state';
+import type { Page, BasePdfState, WatermarkSettings, HeaderFooterSettings } from '../../store/pdf-editor/types/state';
 import type { CanvasElement, TableElement, ImageElement, PageNumberElement, QrCodeElement, DateElement, HeadingElement, SignaturePadElement, LinkElement, BarcodeElement, RadioElement, BulletListElement } from '../../store/pdf-editor/types/elements';
 import { STANDARD_PDF_FONTS } from '@/constants/fonts';
 import type { FontFamily } from '@/constants/fonts';
@@ -37,10 +37,65 @@ interface CrossPageOverflow {
   basePage: PDFPage;   // the overflow page to render page N+1 onto
 }
 
+function drawHeaderFooter(
+  pdfPage: PDFPage,
+  settings: HeaderFooterSettings,
+  font: PDFFont,
+  pageNum: number,
+  totalPages: number,
+  isHeader: boolean,
+) {
+  const { width: pw, height: ph } = pdfPage.getSize();
+  const h = settings.height;
+  const bandY = isHeader ? ph - h : 0;
+  const padding = 8;
+  const today = new Date().toLocaleDateString();
+  const resolve = (t: string) => t
+    .replace(/\{page\}/g, String(pageNum))
+    .replace(/\{total\}/g, String(totalPages))
+    .replace(/\{date\}/g, today);
+
+  // Background
+  if (settings.backgroundColor !== 'transparent') {
+    const hex = settings.backgroundColor.replace('#', '').padEnd(6, '0');
+    pdfPage.drawRectangle({ x: 0, y: bandY, width: pw, height: h, color: rgb(parseInt(hex.slice(0,2),16)/255, parseInt(hex.slice(2,4),16)/255, parseInt(hex.slice(4,6),16)/255) });
+  }
+
+  // Border line
+  if (settings.showBorder) {
+    const borderY = isHeader ? bandY : bandY + h;
+    const hex = settings.borderColor.replace('#', '').padEnd(6, '0');
+    pdfPage.drawLine({ start: { x: 0, y: borderY }, end: { x: pw, y: borderY }, thickness: 0.5, color: rgb(parseInt(hex.slice(0,2),16)/255, parseInt(hex.slice(2,4),16)/255, parseInt(hex.slice(4,6),16)/255) });
+  }
+
+  // Text: baseline centered in band
+  const fs = settings.fontSize;
+  const textY = bandY + (h - fs) / 2;
+  const hex = settings.color.replace('#', '').padEnd(6, '0');
+  const textColor = rgb(parseInt(hex.slice(0,2),16)/255, parseInt(hex.slice(2,4),16)/255, parseInt(hex.slice(4,6),16)/255);
+
+  const left = resolve(settings.zones.left);
+  const center = resolve(settings.zones.center);
+  const right = resolve(settings.zones.right);
+
+  if (left) pdfPage.drawText(left, { x: padding, y: textY, size: fs, font, color: textColor });
+  if (center) {
+    const tw = font.widthOfTextAtSize(center, fs);
+    pdfPage.drawText(center, { x: (pw - tw) / 2, y: textY, size: fs, font, color: textColor });
+  }
+  if (right) {
+    const tw = font.widthOfTextAtSize(right, fs);
+    pdfPage.drawText(right, { x: pw - padding - tw, y: textY, size: fs, font, color: textColor });
+  }
+}
+
 export async function generatePdf(
   pages: Page[],
   elements: Record<string, CanvasElement>,
   basePdf?: BasePdfState | null,
+  watermark?: WatermarkSettings | null,
+  header?: HeaderFooterSettings | null,
+  footer?: HeaderFooterSettings | null,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
 
@@ -130,6 +185,41 @@ export async function generatePdf(
     const pageElements = Object.values(elements)
       .filter(el => el.pageId === canvasPage.id && el.visible)
       .sort((a, b) => a.zIndex - b.zIndex);
+
+    // --- Watermark (drawn first so it sits behind all elements) ---
+    if (watermark?.enabled && watermark.text) {
+      const wSize = watermark.fontSize;
+      const textWidth = helvetica.widthOfTextAtSize(watermark.text, wSize);
+      const hex = watermark.color.replace('#', '').padEnd(6, '0');
+      const wr = parseInt(hex.slice(0, 2), 16) / 255;
+      const wg = parseInt(hex.slice(2, 4), 16) / 255;
+      const wb = parseInt(hex.slice(4, 6), 16) / 255;
+      const { width: pw, height: ph } = pdfPage.getSize();
+
+      // pdf-lib rotates around the text's (x, y) baseline-left point, not its visual centre.
+      // CSS rotates around the element's centre (transform-origin: 50% 50%).
+      // To match: compute (x, y) such that the text's visual centre lands at (pw/2, ph/2)
+      // for any rotation angle.  textCY ≈ distance from baseline to cap-height midpoint.
+      // alpha is negated because pdf-lib is counter-clockwise, CSS is clockwise.
+      const alpha = (-watermark.rotation * Math.PI) / 180;
+      const textCY = wSize * 0.35;
+      const x = pw / 2 - (textWidth / 2) * Math.cos(alpha) + textCY * Math.sin(alpha);
+      const y = ph / 2 - (textWidth / 2) * Math.sin(alpha) - textCY * Math.cos(alpha);
+
+      pdfPage.drawText(watermark.text, {
+        x,
+        y,
+        size: wSize,
+        font: helvetica,
+        color: rgb(wr, wg, wb),
+        opacity: watermark.opacity,
+        rotate: degrees(-watermark.rotation),
+      });
+    }
+
+    // --- Header / Footer ---
+    if (header?.enabled) drawHeaderFooter(pdfPage, header, helvetica, pageNum, sortedPages.length, true);
+    if (footer?.enabled) drawHeaderFooter(pdfPage, footer, helvetica, pageNum, sortedPages.length, false);
 
     // --- Pass 1: render tables ---
     // Tables are shifted by yBaseOffset so they start after any carry-over content

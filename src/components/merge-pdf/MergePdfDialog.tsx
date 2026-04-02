@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { nanoid } from '@reduxjs/toolkit';
-import { FilePlus2, Merge } from 'lucide-react';
+import { FilePlus2, Merge, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { MergeFileRow } from './MergeFileRow';
@@ -16,8 +16,10 @@ interface Props {
 export const MergePdfDialog = ({ open, onClose }: Props) => {
   const [entries, setEntries] = useState<MergeEntry[]>([]);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const [merging, setMerging] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragOverIndex = useRef<number | null>(null);
 
@@ -42,6 +44,7 @@ export const MergePdfDialog = ({ open, onClose }: Props) => {
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    setIsDragActive(false);
     addFiles(Array.from(e.dataTransfer.files));
   }, [addFiles]);
 
@@ -65,6 +68,7 @@ export const MergePdfDialog = ({ open, onClose }: Props) => {
 
   const handleDragOver = useCallback((index: number) => {
     dragOverIndex.current = index;
+    setDropTargetIndex(index);
   }, []);
 
   const handleDragEnd = useCallback(() => {
@@ -79,6 +83,7 @@ export const MergePdfDialog = ({ open, onClose }: Props) => {
       });
     }
     setDraggingIndex(null);
+    setDropTargetIndex(null);
     dragOverIndex.current = null;
   }, [draggingIndex]);
 
@@ -115,23 +120,41 @@ export const MergePdfDialog = ({ open, onClose }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Merge PDFs</DialogTitle>
         </DialogHeader>
 
-        {/* Drop zone */}
-        <div
-          onDragOver={e => e.preventDefault()}
-          onDrop={handleFileDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary hover:bg-accent/40 transition-colors"
-        >
-          <FilePlus2 size={24} className="mx-auto mb-2 text-muted-foreground" />
-          <p className="text-sm font-medium">Drop PDF files here or click to browse</p>
-          <p className="text-xs text-muted-foreground mt-1">Multiple files · drag rows to reorder · set page range per file</p>
-          {loading && <p className="text-xs text-primary mt-2">Reading files…</p>}
-        </div>
+        {/* Drop zone — full when empty, compact strip when files exist */}
+        {entries.length === 0 ? (
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragActive(true); }}
+            onDragLeave={() => setIsDragActive(false)}
+            onDrop={handleFileDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+              isDragActive ? 'border-primary bg-accent/60' : 'hover:border-primary hover:bg-accent/40'
+            }`}
+          >
+            <FilePlus2 size={24} className="mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">Drop PDF files here or click to browse</p>
+            <p className="text-xs text-muted-foreground mt-1">Multiple files · drag to reorder · set page range per file</p>
+            {loading && <p className="text-xs text-primary mt-2">Reading files…</p>}
+          </div>
+        ) : (
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragActive(true); }}
+            onDragLeave={() => setIsDragActive(false)}
+            onDrop={handleFileDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`flex items-center gap-2 px-3 py-2 rounded-md border border-dashed cursor-pointer text-xs transition-colors ${
+              isDragActive ? 'border-primary bg-primary/5 text-primary' : 'border-border text-muted-foreground hover:border-primary hover:text-primary'
+            }`}
+          >
+            <Plus size={13} />
+            <span>{loading ? 'Reading files…' : 'Add more PDF files'}</span>
+          </div>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -150,6 +173,7 @@ export const MergePdfDialog = ({ open, onClose }: Props) => {
                 entry={entry}
                 index={index}
                 draggingIndex={draggingIndex}
+                isDragOver={dropTargetIndex === index}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
@@ -164,7 +188,7 @@ export const MergePdfDialog = ({ open, onClose }: Props) => {
         <div className="flex items-center justify-between pt-1">
           <span className="text-xs text-muted-foreground">
             {entries.length > 0
-              ? `${entries.length} file${entries.length !== 1 ? 's' : ''} · ${totalPages} page${totalPages !== 1 ? 's' : ''} total`
+              ? `${entries.length} file${entries.length !== 1 ? 's' : ''} · ${totalPages} page${totalPages !== 1 ? 's' : ''} in output`
               : 'No files added'}
           </span>
           <div className="flex gap-2">
