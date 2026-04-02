@@ -9,8 +9,11 @@ import { generatePdf } from '@/utils/pdf-generator';
 import { generateHtml } from '@/utils/html-generator';
 import { OcrImportDialog } from '@/components/pdf-editor/OcrImportDialog';
 import {
-  Undo2, Redo2, ZoomIn, ZoomOut, Grid3x3, Eye, Download, Upload, FileDown, Moon, Sun, Circle, FileText, X, ScanText, FileCode
+  Undo2, Redo2, ZoomIn, ZoomOut, Grid3x3, Eye, Download, Upload, FileDown, Moon, Sun, Circle, FileText, X, ScanText, FileCode, Merge, Scissors,
 } from 'lucide-react';
+import { MergePdfDialog } from '@/components/merge-pdf/MergePdfDialog';
+import { SplitPdfDialog } from '@/components/split-pdf/SplitPdfDialog';
+import { ExtractPagesDialog } from '@/components/extract-pages/ExtractPagesDialog';
 import type { Page } from '@/store/pdf-editor/types/state';
 import type { CanvasElement } from '@/store/pdf-editor/types/elements';
 import { toast } from 'sonner';
@@ -52,6 +55,9 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
   const [previewing, setPreviewing] = useState(false);
   const [previewingHtml, setPreviewingHtml] = useState(false);
   const [ocrOpen, setOcrOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [extractOpen, setExtractOpen] = useState(false);
 
   const handleSaveTemplate = () => {
     const data: TemplateFile = {
@@ -286,10 +292,10 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
             size="sm"
             disabled={loadingBasePdf}
             onClick={() => basePdfRef.current?.click()}
-            title="Load a base PDF to use as background"
+            title="Load a base PDF to overlay elements on top of it"
           >
             <FileText size={13} className="mr-1" />
-            {loadingBasePdf ? 'Loading…' : 'Base PDF / Extract Text'}
+            {loadingBasePdf ? 'Loading…' : 'Import & Extract PDF'}
           </Button>
         )}
         <input ref={basePdfRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleBasePdfChange} />
@@ -304,6 +310,36 @@ export const Toolbar = React.memo(({ darkMode, onToggleDark }: ToolbarProps) => 
           </Button>
         )}
         <OcrImportDialog open={ocrOpen} onClose={() => setOcrOpen(false)} />
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950"
+          onClick={() => setMergeOpen(true)}
+          title="Merge multiple PDFs into one"
+        >
+          <Merge size={13} className="mr-1" /> Merge PDF
+        </Button>
+        <MergePdfDialog open={mergeOpen} onClose={() => setMergeOpen(false)} />
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950"
+          onClick={() => setSplitOpen(true)}
+          title="Split a PDF into multiple files"
+        >
+          <Scissors size={13} className="mr-1" /> Split PDF
+        </Button>
+        <SplitPdfDialog open={splitOpen} onClose={() => setSplitOpen(false)} />
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-rose-300 text-rose-600 hover:bg-rose-50 hover:border-rose-400 dark:border-rose-700 dark:text-rose-400 dark:hover:bg-rose-950"
+          onClick={() => setExtractOpen(true)}
+          title="Extract specific pages into a new PDF"
+        >
+          <Scissors size={13} className="mr-1" /> Extract Pages
+        </Button>
+        <ExtractPagesDialog open={extractOpen} onClose={() => setExtractOpen(false)} />
         <Button variant="outline" size="sm" onClick={handleSaveTemplate} title="Save template as JSON">
           <Download size={13} className="mr-1" /> Save Template
         </Button>

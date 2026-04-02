@@ -17,7 +17,8 @@ export type ElementType =
   | 'heading'
   | 'link'
   | 'barcode'
-  | 'radio';
+  | 'radio'
+  | 'bullet-list';
 
 export interface BaseElement {
   id: string;
@@ -168,8 +169,10 @@ export interface QrCodeElement extends BaseElement {
   margin: number;                      // quiet-zone cells
 }
 
+
 export interface DateElement extends BaseElement {
   type: 'date';
+  /** 'today' uses the date at PDF generation / canvas render time; 'fixed' uses fixedDate */
   dateSource: 'today' | 'fixed';
   fixedDate: string;        // ISO date string "YYYY-MM-DD", used when dateSource === 'fixed'
   format: string;           // format string with tokens: YYYY YY MMMM MMM MM M dddd ddd DD D
@@ -186,23 +189,23 @@ export interface HeadingElement extends BaseElement {
   type: 'heading';
   level: 1 | 2 | 3 | 4 | 5 | 6;
   content: string;
-  fontSize: number;
+  fontSize: number;           // defaults per level but user-adjustable
   fontFamily: FontFamily;
   fontColor: string;
   textAlign: 'left' | 'center' | 'right';
   verticalAlign: 'top' | 'middle' | 'bottom';
-  backgroundColor: string;
+  backgroundColor: string;   // 'transparent' = no fill
   padding: number;
   underline: boolean;
 }
 
 export interface LinkElement extends BaseElement {
   type: 'link';
-  label: string;
-  url: string;
+  label: string;           // visible link text
+  url: string;             // destination URL
   fontSize: number;
   fontFamily: FontFamily;
-  fontColor: string;
+  fontColor: string;       // defaults to #2563eb
   textAlign: 'left' | 'center' | 'right';
   padding: number;
 }
@@ -231,6 +234,22 @@ export interface BarcodeElement extends BaseElement {
   margin: number;
 }
 
+export interface BulletListElement extends BaseElement {
+  type: 'bullet-list';
+  items: string[];
+  bulletStyle: 'disc' | 'circle' | 'square' | 'decimal' | 'none';
+  fontSize: number;
+  fontFamily: FontFamily;
+  fontColor: string;
+  fontWeight: 'normal' | 'bold';
+  lineHeight: number;
+  indentSize: number;      // width of the bullet column in px
+  bulletColor: string;
+  backgroundColor: string;
+  padding: number;
+  gap: number;             // vertical gap between items in px
+}
+
 export type CanvasElement =
   | TextElement
   | LineElement
@@ -247,4 +266,5 @@ export type CanvasElement =
   | HeadingElement
   | LinkElement
   | BarcodeElement
-  | RadioElement;
+  | RadioElement
+  | BulletListElement;
