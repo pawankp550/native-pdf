@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import type { CanvasElement, TextElement, LineElement, RectangleElement, TableElement, TableColumn, ImageElement } from '@/store/pdf-editor/types/elements';
 import { ScanText, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { DialogBanner } from '@/components/Ads/DialogBanner';
 
 interface Props {
   open: boolean;
@@ -343,6 +344,8 @@ export const OcrImportDialog = React.memo(({ open, onClose }: Props) => {
             )}
           </div>
         </div>
+
+        <DialogBanner />
       </DialogContent>
     </Dialog>
   );

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { splitPdf, getPageCount } from '@/utils/split-pdf';
 import type { SplitMode, SplitRange } from '@/utils/split-pdf';
+import { DialogBanner } from '@/components/Ads/DialogBanner';
 import { toast } from 'sonner';
 
 interface Props {
@@ -257,6 +258,8 @@ export const SplitPdfDialog = ({ open, onClose }: Props) => {
             </div>
           </>
         )}
+
+        <DialogBanner />
       </DialogContent>
     </Dialog>
   );

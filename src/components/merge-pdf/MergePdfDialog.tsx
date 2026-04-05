@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { MergeFileRow } from './MergeFileRow';
 import { getPageCount, mergePdfs } from '@/utils/merge-pdf';
 import type { MergeEntry } from '@/utils/merge-pdf';
+import { DialogBanner } from '@/components/Ads/DialogBanner';
 import { toast } from 'sonner';
 
 interface Props {
@@ -203,6 +204,8 @@ export const MergePdfDialog = ({ open, onClose }: Props) => {
             </Button>
           </div>
         </div>
+
+        <DialogBanner />
       </DialogContent>
     </Dialog>
   );

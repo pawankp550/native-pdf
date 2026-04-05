@@ -6,6 +6,7 @@ import { selectSortedPages, selectCurrentPageId } from '@/store/pdf-editor/selec
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, MoreHorizontal, Trash2, Copy, ArrowUp, ArrowDown } from 'lucide-react';
+import { AdsBanner } from '../Ads/AdsBanner';
 
 const PAGE_PRESETS = [
   { label: 'A4 Portrait',        width: 794,  height: 1123 },
@@ -141,7 +142,7 @@ export const PageStrip = React.memo(() => {
       </div>
 
       <div className="flex-1 h-full border-l flex items-center justify-center text-xs text-muted-foreground bg-muted/30">
-         placeholder
+         <AdsBanner dataAdSlot={import.meta.env.VITE_ADSENSE_FOOTER_SLOT_ID}/>
       </div>
 
       {/* Add Page Dialog */}

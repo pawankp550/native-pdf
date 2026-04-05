@@ -47,7 +47,7 @@ export const ToolbarCenter = React.memo(() => {
     setPreviewing(true);
     try {
       const bytes = await generatePdf(pages, elements, basePdf, watermark, header, footer);
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const tab = window.open(url, '_blank');
       if (tab) tab.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });

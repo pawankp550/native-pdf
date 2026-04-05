@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { WatermarkSettings } from '@/store/pdf-editor/types/state';
+import { DialogBanner } from '@/components/Ads/DialogBanner';
 
 interface Props {
   open: boolean;
@@ -147,6 +148,8 @@ export const WatermarkDialog = ({ open, onClose }: Props) => {
             </div>
           </div>
         </div>
+
+        <DialogBanner />
       </DialogContent>
     </Dialog>
   );

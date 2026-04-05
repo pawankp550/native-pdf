@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { HeaderFooterSettings } from '@/store/pdf-editor/types/state';
+import { DialogBanner } from '@/components/Ads/DialogBanner';
 
 interface Props {
   open: boolean;
@@ -319,6 +320,8 @@ export const HeaderFooterDialog = ({ open, onClose }: Props) => {
             <Button size="sm" onClick={handleApply}>Apply</Button>
           </div>
         </div>
+
+        <DialogBanner />
       </DialogContent>
     </Dialog>
   );

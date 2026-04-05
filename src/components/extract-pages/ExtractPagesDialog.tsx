@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { renderPdfToImages } from '@/services/pdf-renderer';
 import { extractPages } from '@/utils/extract-pages';
+import { DialogBanner } from '@/components/Ads/DialogBanner';
 import { toast } from 'sonner';
 
 interface Props {
@@ -281,6 +282,8 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
             </Button>
           </div>
         )}
+
+        <DialogBanner />
       </DialogContent>
     </Dialog>
   );

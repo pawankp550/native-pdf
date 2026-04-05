@@ -116,7 +116,7 @@ export const ToolbarRight = React.memo(({ darkMode, onToggleDark, initialAction 
     setExporting(true);
     try {
       const bytes = await generatePdf(pages, elements, basePdf, watermark, header, footer);
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
