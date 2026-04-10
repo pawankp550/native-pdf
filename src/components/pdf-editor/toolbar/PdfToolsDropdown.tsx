@@ -6,6 +6,7 @@ import { SplitPdfDialog } from '@/components/split-pdf/SplitPdfDialog';
 import { ExtractPagesDialog } from '@/components/extract-pages/ExtractPagesDialog';
 import { Merge, Scissors, FileOutput, ChevronDown } from 'lucide-react';
 import type { EditorAction } from '@/App';
+import { SupportDialog } from '@/components/support';
 
 interface Props {
   initialAction?: EditorAction;
@@ -40,6 +41,7 @@ export const PdfToolsDropdown = ({ initialAction }: Props) => {
       <MergePdfDialog open={mergeOpen} onClose={() => setMergeOpen(false)} />
       <SplitPdfDialog open={splitOpen} onClose={() => setSplitOpen(false)} />
       <ExtractPagesDialog open={extractOpen} onClose={() => setExtractOpen(false)} />
+      <SupportDialog />
     </>
   );
 };

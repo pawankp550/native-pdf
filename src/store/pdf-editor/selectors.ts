@@ -17,6 +17,7 @@ export const selectBasePdf = (state: RootState) => state.pdfEditor.basePdf;
 export const selectWatermark = (state: RootState) => state.pdfEditor.watermark;
 export const selectHeader = (state: RootState) => state.pdfEditor.header;
 export const selectFooter = (state: RootState) => state.pdfEditor.footer;
+export const selectShowSupportPrompt = (state: RootState) => state.pdfEditor.showSupportPrompt;
 
 export const selectCurrentPage = createSelector(
   selectPages,

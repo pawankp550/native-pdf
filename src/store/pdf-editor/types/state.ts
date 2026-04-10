@@ -67,4 +67,5 @@ export interface PdfEditorState {
     past: PdfEditorSnapshot[];
     future: PdfEditorSnapshot[];
   };
+  showSupportPrompt: boolean;
 }

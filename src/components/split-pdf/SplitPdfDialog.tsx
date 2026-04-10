@@ -8,6 +8,8 @@ import { splitPdf, getPageCount } from '@/utils/split-pdf';
 import type { SplitMode, SplitRange } from '@/utils/split-pdf';
 import { DialogBanner } from '@/components/Ads/DialogBanner';
 import { toast } from 'sonner';
+import { useAppDispatch } from '@/store/hooks';
+import { setShowSupportPrompt } from '@/store/pdf-editor/slice';
 
 interface Props {
   open: boolean;
@@ -21,6 +23,7 @@ const MODES: { value: SplitMode; label: string; desc: string }[] = [
 ];
 
 export const SplitPdfDialog = ({ open, onClose }: Props) => {
+  const dispatch = useAppDispatch();
   const [file, setFile] = useState<File | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -91,6 +94,7 @@ export const SplitPdfDialog = ({ open, onClose }: Props) => {
     try {
       await splitPdf(file, mode, ranges, everyN);
       toast.success(previewParts() === 1 ? 'PDF downloaded' : `Split into ${previewParts()} files — downloaded as zip`);
+      dispatch(setShowSupportPrompt(true));
     } catch (err) {
       console.error(err);
       toast.error('Split failed');

@@ -7,6 +7,8 @@ import { renderPdfToImages } from '@/services/pdf-renderer';
 import { extractPages } from '@/utils/extract-pages';
 import { DialogBanner } from '@/components/Ads/DialogBanner';
 import { toast } from 'sonner';
+import { setShowSupportPrompt } from '@/store/pdf-editor/slice';
+import { useAppDispatch } from '@/store/hooks';
 
 interface Props {
   open: boolean;
@@ -37,6 +39,7 @@ function parseRangeInput(input: string, maxPage: number): Set<number> {
 }
 
 export const ExtractPagesDialog = ({ open, onClose }: Props) => {
+  const dispatch = useAppDispatch();
   const [file, setFile] = useState<File | null>(null);
   const [thumbs, setThumbs] = useState<PageThumb[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -134,6 +137,7 @@ export const ExtractPagesDialog = ({ open, onClose }: Props) => {
       a.click();
       URL.revokeObjectURL(url);
       toast.success(`Extracted ${selected.size} page${selected.size !== 1 ? 's' : ''}`);
+      dispatch(setShowSupportPrompt(true));
     } catch (err) {
       console.error(err);
       toast.error('Extraction failed');

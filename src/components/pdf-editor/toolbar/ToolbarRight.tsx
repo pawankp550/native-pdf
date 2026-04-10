@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { markSaved, loadTemplateState, setBasePdf, clearBasePdf } from '@/store/pdf-editor/slice';
+import { markSaved, loadTemplateState, setBasePdf, clearBasePdf, setShowSupportPrompt } from '@/store/pdf-editor/slice';
 import { selectTemplateName, selectPages, selectElements, selectBasePdf, selectWatermark, selectHeader, selectFooter } from '@/store/pdf-editor/selectors';
 import { renderPdfToImages } from '@/services/pdf-renderer';
 import { Button } from '@/components/ui/button';
@@ -69,6 +69,7 @@ export const ToolbarRight = React.memo(({ darkMode, onToggleDark, initialAction 
     URL.revokeObjectURL(url);
     dispatch(markSaved());
     toast.success('Template saved');
+    dispatch(setShowSupportPrompt(true));
   };
 
   const handleLoadTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,6 +125,7 @@ export const ToolbarRight = React.memo(({ darkMode, onToggleDark, initialAction 
       a.click();
       URL.revokeObjectURL(url);
       toast.success('PDF exported');
+      dispatch(setShowSupportPrompt(true));
     } catch (err) {
       console.error(err);
       toast.error('PDF export failed');

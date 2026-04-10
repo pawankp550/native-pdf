@@ -29,4 +29,5 @@ export const initialState: PdfEditorState = {
     past: [],
     future: [],
   },
+  showSupportPrompt: false,
 };

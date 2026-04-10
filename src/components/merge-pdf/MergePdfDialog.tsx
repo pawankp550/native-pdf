@@ -8,6 +8,8 @@ import { getPageCount, mergePdfs } from '@/utils/merge-pdf';
 import type { MergeEntry } from '@/utils/merge-pdf';
 import { DialogBanner } from '@/components/Ads/DialogBanner';
 import { toast } from 'sonner';
+import { setShowSupportPrompt } from '@/store/pdf-editor/slice';
+import { useAppDispatch } from '@/store/hooks';
 
 interface Props {
   open: boolean;
@@ -15,6 +17,7 @@ interface Props {
 }
 
 export const MergePdfDialog = ({ open, onClose }: Props) => {
+  const dispatch = useAppDispatch();
   const [entries, setEntries] = useState<MergeEntry[]>([]);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
@@ -101,6 +104,7 @@ export const MergePdfDialog = ({ open, onClose }: Props) => {
       a.click();
       URL.revokeObjectURL(url);
       toast.success('PDF merged and downloaded');
+      dispatch(setShowSupportPrompt(true));
     } catch (err) {
       console.error(err);
       toast.error('Merge failed');

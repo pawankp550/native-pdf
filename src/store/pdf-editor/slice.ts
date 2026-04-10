@@ -352,6 +352,10 @@ const slice = createSlice({
       }
       state.isDirty = true;
     },
+    setShowSupportPrompt(state, action: PayloadAction<boolean>) {
+      const show = action.payload && !sessionStorage.getItem('support-prompt-dismissed');
+      state.showSupportPrompt = show;
+    }
   },
 });
 
@@ -370,6 +374,7 @@ export const {
   setBasePdf, clearBasePdf,
   setWatermark,
   setHeader, setFooter,
+  setShowSupportPrompt,
 } = slice.actions;
 
 export default slice.reducer;
