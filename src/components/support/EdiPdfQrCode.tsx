@@ -1,5 +1,3 @@
-import React from 'react';
-
 const EdiPdfQrCode = () => {
   return (
     <div className="mt-3 flex flex-col items-center gap-3 p-3 bg-white rounded-xl border border-border/50 shadow-sm transition-all hover:shadow-md">
