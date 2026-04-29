@@ -35,7 +35,7 @@ export const ImageProperties = React.memo(({ element: el }: Props) => {
     return (
         <AccordionItem value="style">
             <AccordionTrigger className="text-xs font-medium py-2">Image</AccordionTrigger>
-            <AccordionContent className="space-y-3 pb-3">
+            <AccordionContent className="space-y-3 pb-3 overflow-auto">
                 {/* Preview thumbnail */}
                 {el.src && (
                     <div className="w-full rounded overflow-hidden border" style={{ height: 80 }}>

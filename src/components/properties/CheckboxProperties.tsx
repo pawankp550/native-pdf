@@ -28,7 +28,7 @@ export const CheckboxProperties = React.memo(({ element: el }: Props) => {
     return (
         <AccordionItem value="style">
             <AccordionTrigger>Checkbox Style</AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent className='overflow-auto'>
                 <div className="space-y-2.5">
                     {/* Checked toggle with big preview */}
                     <div>

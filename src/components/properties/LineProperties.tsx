@@ -24,7 +24,7 @@ export const LineProperties = React.memo(({ element: el }: Props) => {
     return (
         <AccordionItem value="style">
             <AccordionTrigger>Line Style</AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent className='overflow-auto'>
                 <div className="space-y-2.5">
                     <ColorPicker label="Color" value={el.strokeColor} onChange={v => update({ strokeColor: v })} />
                     <NumberInput label="Stroke Width" value={el.strokeWidth} min={1} max={20} onChange={v => update({ strokeWidth: v })} />

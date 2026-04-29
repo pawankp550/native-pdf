@@ -18,7 +18,7 @@ export const RectangleProperties = React.memo(({ element: el }: Props) => {
     return (
         <AccordionItem value="style">
             <AccordionTrigger>Rectangle Style</AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent className='overflow-auto'>
                 <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
                         <Label>Transparent Fill</Label>

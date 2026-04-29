@@ -51,7 +51,7 @@ export const TableProperties = React.memo(({ element: el }: Props) => {
   return (
     <AccordionItem value="style">
       <AccordionTrigger>Table Style</AccordionTrigger>
-      <AccordionContent>
+      <AccordionContent className='overflow-auto'>
         <div className="space-y-3">
           <div>
             <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Rows</Label>

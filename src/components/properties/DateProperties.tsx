@@ -40,7 +40,7 @@ export const DateProperties = React.memo(({ element: el }: Props) => {
   return (
     <AccordionItem value="style">
       <AccordionTrigger className="text-xs font-medium py-2">Date</AccordionTrigger>
-      <AccordionContent className="space-y-3 pb-3">
+      <AccordionContent className="space-y-3 pb-3 overflow-auto">
 
         {/* Date source */}
         <div>

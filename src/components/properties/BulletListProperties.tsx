@@ -54,7 +54,7 @@ export const BulletListProperties = React.memo(({ element: el }: Props) => {
       {/* Items */}
       <AccordionItem value="items">
         <AccordionTrigger className="text-xs font-semibold py-2">Items</AccordionTrigger>
-        <AccordionContent className="flex flex-col gap-1.5 pb-3">
+        <AccordionContent className="flex flex-col gap-1.5 pb-3 overflow-auto">
           {el.items.map((item, i) => (
             <div key={i} className="flex items-center gap-1">
               <div className="flex flex-col gap-0.5 shrink-0">
@@ -91,7 +91,7 @@ export const BulletListProperties = React.memo(({ element: el }: Props) => {
       {/* Style */}
       <AccordionItem value="style">
         <AccordionTrigger className="text-xs font-semibold py-2">Style</AccordionTrigger>
-        <AccordionContent className="flex flex-col gap-2.5 pb-3">
+        <AccordionContent className="flex flex-col gap-2.5 pb-3 overflow-auto">
           <div>
             <Label className="text-xs">Bullet Style</Label>
             <Select value={el.bulletStyle} onValueChange={v => upd({ bulletStyle: v as BulletListElement['bulletStyle'] })}>

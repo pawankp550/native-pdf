@@ -20,7 +20,7 @@ export const RadioProperties = React.memo(({ element: el }: Props) => {
   return (
     <AccordionItem value="style">
       <AccordionTrigger>Radio Button</AccordionTrigger>
-      <AccordionContent>
+      <AccordionContent className='overflow-auto'>
         <div className="space-y-2.5">
 
           {/* Checked preview */}

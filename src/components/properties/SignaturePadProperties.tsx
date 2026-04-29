@@ -18,7 +18,7 @@ export const SignaturePadProperties = React.memo(({ element: el }: Props) => {
     return (
         <AccordionItem value="style">
             <AccordionTrigger>Signature Pad</AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent className='overflow-auto'>
                 <div className="space-y-2.5">
                     <Button
                         variant="outline"

@@ -21,7 +21,7 @@ export const TextProperties = React.memo(({ element: el }: Props) => {
   return (
     <AccordionItem value="style">
       <AccordionTrigger>Text Style</AccordionTrigger>
-      <AccordionContent>
+      <AccordionContent className='overflow-auto'>
         <div className="space-y-2.5">
           <div>
             <Label>Font Family</Label>

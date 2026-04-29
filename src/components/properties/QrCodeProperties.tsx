@@ -22,7 +22,7 @@ export const QrCodeProperties = React.memo(({ element: el }: Props) => {
     return (
         <AccordionItem value="style">
             <AccordionTrigger className="text-xs font-medium py-2">QR Code</AccordionTrigger>
-            <AccordionContent className="space-y-3 pb-3">
+            <AccordionContent className="space-y-3 pb-3 overflow-auto">
                 <div>
                     <Label>URL / Text</Label>
                     <Input

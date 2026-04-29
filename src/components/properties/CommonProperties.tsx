@@ -33,7 +33,7 @@ export const CommonProperties = React.memo(({ elements, selectedIds }: Props) =>
             {/* Layout */}
             <AccordionItem value="layout">
                 <AccordionTrigger>Layout</AccordionTrigger>
-                <AccordionContent>
+                <AccordionContent className='overflow-auto'>
                     <div className="space-y-2">
                         {!multi && (
                             <>
@@ -88,7 +88,7 @@ export const CommonProperties = React.memo(({ elements, selectedIds }: Props) =>
             {/* Arrange */}
             <AccordionItem value="arrange">
                 <AccordionTrigger>Arrange</AccordionTrigger>
-                <AccordionContent>
+                <AccordionContent className='overflow-auto'>
                     <div className="space-y-2">
                         {!multi && (
                             <div className="grid grid-cols-4 gap-1">
